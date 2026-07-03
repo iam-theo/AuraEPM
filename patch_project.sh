@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/projects/interface/project.router.ts
 import { Router } from "express";
 import { ProjectController } from "./project.controller.ts";
 import { ProjectService } from "../application/project.service.ts";
@@ -120,3 +121,4 @@ router.put("/:id", authMiddleware, controller.update);
 router.delete("/:id", authMiddleware, controller.delete);
 
 export default router;
+INNER_EOF

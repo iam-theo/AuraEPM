@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/authorization/interface/authorization.router.ts
 import { Router } from "express";
 import { authMiddleware } from "../../../shared/infrastructure/auth.middleware.ts";
 import { requirePermissions } from "../infrastructure/authorization.middleware.ts";
@@ -279,3 +280,4 @@ router.get("/users/:userId/profile", authMiddleware, requirePermissions("admin.u
 router.get("/logs", authMiddleware, requirePermissions("admin.logs"), controller.getSecurityAuditLogs);
 
 export default router;
+INNER_EOF

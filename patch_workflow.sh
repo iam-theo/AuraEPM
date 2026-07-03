@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/workflow/interface/workflow.router.ts
 import { Router } from "express";
 import { WorkflowController } from "./workflow.controller.ts";
 import { WorkflowService } from "../application/workflow.service.ts";
@@ -266,3 +267,4 @@ router.get("/:id/logs", controller.logs);
 router.get("/:id/instances", controller.instances);
 
 export default router;
+INNER_EOF

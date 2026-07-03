@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/issues-risks/interface/risk-issue.router.ts
 import { Router } from "express";
 import { RiskIssueController } from "./risk-issue.controller.ts";
 import { RiskIssueService } from "../application/risk-issue.service.ts";
@@ -100,3 +101,4 @@ router.put("/:id", controller.update);
 router.delete("/:id", controller.delete);
 
 export default router;
+INNER_EOF

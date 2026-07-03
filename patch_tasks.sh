@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/tasks/interface/task.router.ts
 import { Router } from "express";
 import { TaskController } from "./task.controller.ts";
 import { TaskService } from "../application/task.service.ts";
@@ -7,18 +8,6 @@ const router = Router();
 const repository = new DrizzleTaskRepository();
 const service = new TaskService(repository);
 const controller = new TaskController(service);
-
-/**
- * @swagger
- * /tasks:
- *   get:
- *     summary: Retrieve all tasks
- *     tags: [Tasks]
- *     responses:
- *       200:
- *         description: A list of all tasks
- */
-router.get("/", controller.getAll);
 
 /**
  * @swagger
@@ -154,3 +143,4 @@ router.put("/:id", controller.update);
 router.delete("/:id", controller.delete);
 
 export default router;
+INNER_EOF

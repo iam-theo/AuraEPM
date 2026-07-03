@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/enterprise/interface/enterprise.router.ts
 import { Router } from "express";
 import { EnterpriseController } from "./enterprise.controller.ts";
 
@@ -656,3 +657,4 @@ router.get("/ai/projects/:id/risk-trends", controller.detectRiskTrends);
 router.get("/ai/pmo/weekly-report", controller.generateWeeklyPMOReport);
 
 export default router;
+INNER_EOF

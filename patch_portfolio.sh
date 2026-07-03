@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/portfolio/interface/portfolio.router.ts
 import { Router } from "express";
 import { PortfolioController } from "./portfolio.controller.ts";
 import { PortfolioService } from "../application/portfolio.service.ts";
@@ -42,3 +43,4 @@ router.get("/", controller.list);
 router.post("/", controller.create);
 
 export default router;
+INNER_EOF

@@ -5,6 +5,11 @@ import { ResponseFormatter, StatusCode } from "../../../shared/infrastructure/re
 export class TaskController {
   constructor(private readonly taskService: TaskService) {}
 
+  getAll = async (req: Request, res: Response) => {
+    const tasks = await this.taskService.getAllTasks();
+    return ResponseFormatter.success(res, tasks.map(t => ({ id: t.id, ...t.props })));
+  };
+
   getByProject = async (req: Request, res: Response) => {
     const tasks = await this.taskService.getTasksByProject(req.params.projectId);
     return ResponseFormatter.success(res, tasks.map(t => ({ id: t.id, ...t.props })));

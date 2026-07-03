@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/orchestration/interface/developer-portal.router.ts
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 
@@ -246,3 +247,4 @@ devPortalRouter.get("/telemetry", (req, res) => {
 });
 
 export default devPortalRouter;
+INNER_EOF

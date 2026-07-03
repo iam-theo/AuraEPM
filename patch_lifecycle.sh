@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/modules/enterprise/interface/lifecycle.router.ts
 import { Router } from "express";
 import { EnterpriseController } from "./enterprise.controller.ts";
 
@@ -235,3 +236,4 @@ router.post("/instances/:instanceId/stages/:stageId/operations-review", controll
 router.get("/instances/:instanceId/stages/:stageId/sla", controller.getStageSLAPerformance);
 
 export default router;
+INNER_EOF

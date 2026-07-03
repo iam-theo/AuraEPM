@@ -23,6 +23,10 @@ export class TaskService {
     return this.taskRepository.findByProjectId(projectId);
   }
 
+  async getAllTasks(): Promise<Task[]> {
+    return this.taskRepository.findAll();
+  }
+
   async updateTaskStatus(id: string, newStatus: TaskStatus): Promise<Task> {
     const task = await this.getTask(id);
     task.updateStatus(newStatus);
