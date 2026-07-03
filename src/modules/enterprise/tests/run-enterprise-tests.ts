@@ -6,8 +6,10 @@ import { ChangeService } from "../application/change.service.ts";
 import { TemplateService } from "../application/template.service.ts";
 import { KPIHealthService } from "../application/kpi-health.service.ts";
 import { AIService } from "../application/ai.service.ts";
+import { LifecycleService } from "../application/lifecycle.service.ts";
 import { PortfolioService } from "../../portfolio/application/portfolio.service.ts";
 import { ProjectService } from "../../projects/application/project.service.ts";
+import { eq } from "drizzle-orm";
 import { db } from "../../../shared/database/index.ts";
 import { projects, tasks } from "../../../db/schema.ts";
 import logger from "../../../shared/infrastructure/logger.ts";
@@ -213,6 +215,77 @@ export async function executeEnterpriseTests() {
     } else {
       logger.warn("Skipping AI call: GEMINI_API_KEY is not configured.");
     }
+
+    // --- 9. STAGE-GATE GOVERNANCE SYSTEM (PLGS) ---
+    logger.info("TEST Scenario 9: Running full Stage-Gate Governance PLGS verification...");
+    const lifecycleService = new LifecycleService();
+
+    // A. Seed Default Corporate Template
+    const seed = await lifecycleService.seedDefaultTemplate();
+    logger.info(`Lifecycle default seed result: ${seed.message}`);
+
+    // B. Create a new locked project inside Lifecycle Gateway
+    const [lockedProject] = await db
+      .insert(projects)
+      .values({
+        programId: program.id,
+        name: "Enterprise Core ERP Ingress Gateway",
+        description: "Regulated high-compliance ERP gateway project",
+        managerId: actorId,
+        budget: "15000000.00",
+        actualCost: "0.00",
+        startDate: new Date(),
+        status: "DRAFT",
+      })
+      .returning();
+    logger.info(`Locked gateway project created. Status is ${lockedProject.status}`);
+
+    // C. Initialize Project Lifecycle
+    const instance = await lifecycleService.createInstance(actorId, lockedProject.id);
+    logger.info(`Governance instance initialized. Instance ID: ${instance.instanceId}. Currently locked in: ${instance.currentStage.name}`);
+
+    // D. Step 1: Complete checklists for Stage 1
+    logger.info("Completing Stage 1 mandatory checklists...");
+    for (const item of instance.checklists) {
+      await lifecycleService.completeChecklistItem(actorId, instance.instanceId, item.id, true, "Checked and verified manually");
+    }
+
+    // E. Step 2: Upload stage documents
+    logger.info("Uploading Stage 1 required documents...");
+    for (const doc of instance.documents) {
+      const upload = await lifecycleService.uploadDocument(actorId, instance.instanceId, doc.id, {
+        fileName: `${doc.name.replace(/\s+/g, "_")}_v1.pdf`,
+        filePath: `/uploads/${doc.id}/v1.pdf`,
+      });
+      // Verify immediately
+      await lifecycleService.verifyDocument(actorId, upload.id, "VERIFIED", "Compliance checklist verified ok");
+    }
+
+    // F. Step 3: Complete role approvals
+    logger.info("Recording Stage 1 role-based approvals...");
+    for (const app of instance.approvals) {
+      await lifecycleService.submitStageApproval(actorId, instance.instanceId, instance.currentStage.id, app.role, "APPROVED", "Checked and signed digitally");
+    }
+
+    // G. Step 4: Add discussion logs
+    await lifecycleService.addComment(actorId, instance.instanceId, instance.currentStage.id, "Ready for Head of Operations signoff");
+
+    // H. Step 5: Submit Head of Operations Review Gate to unlock Stage 2
+    logger.info("Submitting Head of Operations Review Gate...");
+    const gateApproval = await lifecycleService.submitHeadOfOperationsReview(actorId, instance.instanceId, instance.currentStage.id, "APPROVED", {
+      comments: "All compliance gates satisfied. Stage 1 passed.",
+      digitalSignature: "SIG-CORP-OP-HEAD-12345",
+    });
+    logger.info(`Head of Operations Gate approved. Status: ${gateApproval.status}`);
+
+    // I. Verify that Stage 2 is unlocked
+    const refreshedInstance = await lifecycleService.getInstance(lockedProject.id);
+    logger.info(`Current Stage updated after gate approval! Now in: ${refreshedInstance.currentStage.name} (Stage Number: ${refreshedInstance.currentStage.stageNumber})`);
+
+    // J. Run background SLA cron simulator
+    logger.info("Executing background SLA monitoring cron job simulation...");
+    const cronResult = await lifecycleService.runSLAChronChecks();
+    logger.info(`SLA cron completed successfully! Processed: ${cronResult.processedSlas}, Warnings: ${cronResult.warningsTriggered}`);
 
     logger.info("================ ALL ENTERPRISE EPPM SIMULATION & INTEGRATION TESTS COMPLETED SUCCESSFULLY ================");
     return { success: true };

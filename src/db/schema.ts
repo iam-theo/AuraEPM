@@ -649,5 +649,281 @@ export const kpiMetrics = pgTable("kpi_metrics", {
   calculatedAt: timestamp("calculated_at").defaultNow().notNull(),
 });
 
+// --- STAGE-GATE GOVERNANCE (PLGS) TABLES ---
+
+// 1. Lifecycle Templates
+export const lifecycleTemplates = pgTable("lifecycle_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 2. Lifecycle Versions
+export const lifecycleVersions = pgTable("lifecycle_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  templateId: uuid("template_id").references(() => lifecycleTemplates.id).notNull(),
+  version: integer("version").notNull(),
+  status: varchar("status", { length: 50 }).default("DRAFT").notNull(), // DRAFT, ACTIVE, ARCHIVED
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3. Lifecycle Stages
+export const lifecycleStages = pgTable("lifecycle_stages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  templateId: uuid("template_id").references(() => lifecycleTemplates.id).notNull(),
+  versionId: uuid("version_id").references(() => lifecycleVersions.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  stageNumber: integer("stage_number").notNull(),
+  description: text("description"),
+  businessObjective: text("business_objective"),
+  estimatedDurationDays: integer("estimated_duration_days").default(30).notNull(),
+  maxSlaDurationDays: integer("max_sla_duration_days").default(45).notNull(),
+  warningThresholdDays: integer("warning_threshold_days").default(35).notNull(),
+  escalationThresholdDays: integer("escalation_threshold_days").default(40).notNull(),
+  ownerRole: varchar("owner_role", { length: 100 }),
+  approverRoles: text("approver_roles"), // JSON string/array of roles
+  headOfOperationsReviewerId: varchar("head_of_operations_reviewer_id", { length: 255 }),
+  requiredPermissions: text("required_permissions"), // JSON array
+  workflowMapping: varchar("workflow_mapping", { length: 100 }),
+  entryRulesJson: text("entry_rules_json"),
+  exitRulesJson: text("exit_rules_json"),
+  stageWeight: integer("stage_weight").default(10).notNull(),
+  displayOrder: integer("display_order").notNull(),
+  dependenciesJson: text("dependencies_json"),
+  isLockedByDefault: boolean("is_locked_by_default").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 4. Lifecycle Instances (The Active Lifecycle status tracker per Project)
+export const lifecycleInstances = pgTable("lifecycle_instances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  templateId: uuid("template_id").references(() => lifecycleTemplates.id).notNull(),
+  versionId: uuid("version_id").references(() => lifecycleVersions.id),
+  currentStageId: uuid("current_stage_id").references(() => lifecycleStages.id),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, IN_PROGRESS, COMPLETED, SUSPENDED, TERMINATED
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 5. Stage Documents Configuration (Required documents per stage definition)
+export const stageDocuments = pgTable("stage_documents", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 100 }).notNull(), // CHARTER, BUSINESS_CASE, FEASIBILITY, etc.
+  isMandatory: boolean("is_mandatory").default(true).notNull(),
+  description: text("description"),
+  allowedFormatsJson: text("allowed_formats_json"), // JSON string array (e.g., ["pdf", "docx"])
+  maxFileSizeMb: integer("max_file_size_mb").default(50).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 6. Document Versions (Uploaded artifacts)
+export const documentVersions = pgTable("document_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageDocumentId: uuid("stage_document_id").references(() => stageDocuments.id).notNull(),
+  filePath: varchar("file_path", { length: 512 }).notNull(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  version: integer("version").default(1).notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, VERIFIED, REJECTED, SUPERSEDED
+  uploadedBy: varchar("uploaded_by", { length: 255 }).notNull(),
+  verificationStatus: varchar("verification_status", { length: 50 }).default("PENDING").notNull(), // PENDING, IN_PROGRESS, VERIFIED, REJECTED
+  reviewerNotes: text("reviewer_notes"),
+  checksum: varchar("checksum", { length: 255 }),
+  virusScanPassed: boolean("virus_scan_passed").default(true).notNull(),
+  digitalSignature: text("digital_signature"),
+  isOcrReady: boolean("is_ocr_ready").default(false).notNull(),
+  retentionDate: timestamp("retention_date"),
+  uploadedAt: timestamp("uploaded_at").defaultNow().notNull(),
+});
+
+// 7. Document Verifications Tracker
+export const documentVerifications = pgTable("document_verifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  documentVersionId: uuid("document_version_id").references(() => documentVersions.id).notNull(),
+  reviewerId: varchar("reviewer_id", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(), // VERIFIED, REJECTED
+  notes: text("notes"),
+  verifiedAt: timestamp("verified_at").defaultNow().notNull(),
+});
+
+// 8. Stage Checklists Configuration
+export const stageChecklists = pgTable("stage_checklists", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  itemText: text("item_text").notNull(),
+  isMandatory: boolean("is_mandatory").default(true).notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 9. Checklist Responses
+export const checklistResponses = pgTable("checklist_responses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  checklistId: uuid("checklist_id").references(() => stageChecklists.id).notNull(),
+  isCompleted: boolean("is_completed").default(false).notNull(),
+  completedBy: varchar("completed_by", { length: 255 }),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 10. Stage Approvals (Mandatory role approvals)
+export const stageApprovals = pgTable("stage_approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  role: varchar("role", { length: 100 }).notNull(),
+  assignedApproverId: varchar("assigned_approver_id", { length: 255 }),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, REWORK
+  comments: text("comments"),
+  signedAt: timestamp("signed_at"),
+  digitalSignature: text("digital_signature"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 11. Head of Operations Reviews
+export const headOfOperationsReviews = pgTable("head_of_operations_reviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  reviewerId: varchar("reviewer_id", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, REWORK_REQUESTED, CLARIFICATION_REQUESTED
+  comments: text("comments"),
+  rejectedChecklistItemsJson: text("rejected_checklist_items_json"),
+  rejectedDocumentsJson: text("rejected_documents_json"),
+  resubmissionDueDate: timestamp("resubmission_due_date"),
+  digitalSignature: text("digital_signature"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 12. Lifecycle History
+export const lifecycleHistory = pgTable("lifecycle_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  action: varchar("action", { length: 100 }).notNull(), // STAGE_STARTED, STAGE_SUBMITTED, STAGE_APPROVED, STAGE_REJECTED, REWORK_REQUESTED, CLARIFICATION_REQUESTED
+  performedBy: varchar("performed_by", { length: 255 }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 13. Lifecycle Notifications
+export const lifecycleNotifications = pgTable("lifecycle_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  recipientId: varchar("recipient_id", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // IN_APP, EMAIL, SMS, SLACK, MS_TEAMS
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  channel: varchar("channel", { length: 50 }).notNull(),
+  isSent: boolean("is_sent").default(false).notNull(),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 14. Lifecycle Escalations
+export const lifecycleEscalations = pgTable("lifecycle_escalations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  level: integer("level").default(1).notNull(),
+  status: varchar("status", { length: 50 }).default("ACTIVE").notNull(), // ACTIVE, RESOLVED
+  escalatedTo: varchar("escalated_to", { length: 255 }).notNull(),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+// 15. Lifecycle SLAs
+export const lifecycleSLAs = pgTable("lifecycle_slas", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  actualStart: timestamp("actual_start").defaultNow().notNull(),
+  targetFinish: timestamp("target_finish").notNull(),
+  actualFinish: timestamp("actual_finish"),
+  slaStatus: varchar("sla_status", { length: 50 }).default("NORMAL").notNull(), // NORMAL, WARNING, BREACHED
+  lastCheckedAt: timestamp("last_checked_at").defaultNow().notNull(),
+});
+
+// 16. Lifecycle Comments
+export const lifecycleComments = pgTable("lifecycle_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  authorId: varchar("author_id", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  parentCommentId: uuid("parent_comment_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 17. Lifecycle Decisions
+export const lifecycleDecisions = pgTable("lifecycle_decisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  decision: varchar("decision", { length: 100 }).notNull(), // APPROVE, REJECT, REWORK, CLARIFICATION
+  madeBy: varchar("made_by", { length: 255 }).notNull(),
+  comments: text("comments"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 18. Lifecycle Audit Logs
+export const lifecycleAuditLogs = pgTable("lifecycle_audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id),
+  actorId: varchar("actor_id", { length: 255 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  module: varchar("module", { length: 100 }).default("PLGS").notNull(),
+  entityId: uuid("entity_id").notNull(),
+  payload: text("payload"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 19. Reminder Queue
+export const reminderQueue = pgTable("reminder_queue", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  recipientId: varchar("recipient_id", { length: 255 }).notNull(),
+  reminderType: varchar("reminder_type", { length: 100 }).notNull(), // UPLOAD_OVERDUE, APPROVAL_OVERDUE, HEAD_OF_OPS_OVERDUE
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  isSent: boolean("is_sent").default(false).notNull(),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 20. Escalation Queue
+export const escalationQueue = pgTable("escalation_queue", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
+  stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  level: integer("level").notNull(),
+  isTriggered: boolean("is_triggered").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 21. Scheduler Jobs
+export const schedulerJobs = pgTable("scheduler_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  jobName: varchar("job_name", { length: 100 }).notNull(),
+  lastRunAt: timestamp("last_run_at").defaultNow().notNull(),
+  status: varchar("status", { length: 50 }).default("SUCCESS").notNull(), // SUCCESS, FAILED
+  errorMessage: text("error_message"),
+});
+
+
 
 

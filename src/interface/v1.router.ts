@@ -6,6 +6,7 @@ import authRouter from "../modules/authorization/interface/authorization.router.
 import workflowRouter from "../modules/workflow/interface/workflow.router.ts";
 import portfolioRouter from "../modules/portfolio/interface/portfolio.router.ts";
 import enterpriseRouter from "../modules/enterprise/interface/enterprise.router.ts";
+import lifecycleRouter from "../modules/enterprise/interface/lifecycle.router.ts";
 
 const v1Router = Router();
 
@@ -16,5 +17,6 @@ v1Router.use("/auth", authRouter);
 v1Router.use("/workflows", workflowRouter);
 v1Router.use("/portfolios", portfolioRouter);
 v1Router.use("/enterprise", enterpriseRouter);
+v1Router.use("/lifecycle", lifecycleRouter);
 
 export default v1Router;

@@ -480,7 +480,7 @@ export class WorkflowService {
         .where(eq(workflowConditions.transitionId, transition.id));
 
       if (conditions.length > 0) {
-        const pass = ConditionsEngine.evaluate(conditions, variables);
+        const pass = ConditionsEngine.evaluate(conditions as any, variables);
         if (!pass) {
           await db.insert(workflowLogs).values({
             instanceId,

@@ -7,6 +7,7 @@ import { ChangeService } from "../application/change.service.ts";
 import { TemplateService } from "../application/template.service.ts";
 import { KPIHealthService } from "../application/kpi-health.service.ts";
 import { AIService } from "../application/ai.service.ts";
+import { LifecycleService } from "../application/lifecycle.service.ts";
 import { ResponseFormatter, StatusCode } from "../../../shared/infrastructure/response.ts";
 
 export class EnterpriseController {
@@ -18,6 +19,7 @@ export class EnterpriseController {
   private readonly templateService = new TemplateService();
   private readonly kpiHealthService = new KPIHealthService();
   private readonly aiService = new AIService();
+  private readonly lifecycleService = new LifecycleService();
 
   // --- SIMULATION TESTS ---
   runSimulationTests = async (req: Request, res: Response, next: NextFunction) => {
@@ -419,6 +421,142 @@ export class EnterpriseController {
     try {
       const report = await this.aiService.generateWeeklyPMOReport();
       return ResponseFormatter.success(res, report);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  // --- STAGE-GATE GOVERNANCE (PLGS) ENDPOINTS ---
+
+  seedDefaultLifecycleTemplate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.lifecycleService.seedDefaultTemplate();
+      return ResponseFormatter.success(res, result, "Default governance template seeded successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  createLifecycleInstance = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { projectId, templateId } = req.body;
+      const instance = await this.lifecycleService.createInstance(actorId, projectId, templateId);
+      return ResponseFormatter.success(res, instance, "Project lifecycle governance instance created successfully", StatusCode.CREATED);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getLifecycleInstance = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const instance = await this.lifecycleService.getInstance(req.params.projectId);
+      return ResponseFormatter.success(res, instance);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  uploadLifecycleDocument = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId, stageDocumentId } = req.params;
+      const doc = await this.lifecycleService.uploadDocument(actorId, instanceId, stageDocumentId, req.body);
+      return ResponseFormatter.success(res, doc, "Document uploaded successfully", StatusCode.CREATED);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  verifyLifecycleDocument = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { documentVersionId } = req.params;
+      const { status, notes } = req.body;
+      const updated = await this.lifecycleService.verifyDocument(actorId, documentVersionId, status, notes);
+      return ResponseFormatter.success(res, updated, `Document verification recorded as ${status.toLowerCase()}`);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  completeLifecycleChecklist = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId, checklistId } = req.params;
+      const { isCompleted, notes } = req.body;
+      const updated = await this.lifecycleService.completeChecklistItem(actorId, instanceId, checklistId, isCompleted, notes);
+      return ResponseFormatter.success(res, updated, "Checklist item progress saved successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  submitStageApprovalRole = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId, stageId } = req.params;
+      const { role, status, comments, digitalSignature } = req.body;
+      const updated = await this.lifecycleService.submitStageApproval(actorId, instanceId, stageId, role, status, comments, digitalSignature);
+      return ResponseFormatter.success(res, updated, "Role-based approval response saved successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  submitHeadOfOperationsReviewGate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId, stageId } = req.params;
+      const { status, comments, rejectedChecklistItemsJson, rejectedDocumentsJson, resubmissionDueDate, digitalSignature } = req.body;
+      const review = await this.lifecycleService.submitHeadOfOperationsReview(actorId, instanceId, stageId, status, {
+        comments,
+        rejectedChecklistItemsJson,
+        rejectedDocumentsJson,
+        resubmissionDueDate,
+        digitalSignature,
+      });
+      return ResponseFormatter.success(res, review, `Head of Operations Review recorded with status: ${status}`);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getStageSLAPerformance = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { instanceId, stageId } = req.params;
+      const details = await this.lifecycleService.getStageSLADetails(instanceId, stageId);
+      return ResponseFormatter.success(res, details);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getGovernanceDashboardMetrics = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const metrics = await this.lifecycleService.getGovernanceDashboard();
+      return ResponseFormatter.success(res, metrics);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  runSLACronJobsSimulation = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.lifecycleService.runSLAChronChecks();
+      return ResponseFormatter.success(res, result, "Governance SLA and schedule background cron execution completed successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  addLifecycleCommentMessage = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId, stageId } = req.params;
+      const { content, parentCommentId } = req.body;
+      const comment = await this.lifecycleService.addComment(actorId, instanceId, stageId, content, parentCommentId);
+      return ResponseFormatter.success(res, comment, "Comment added successfully", StatusCode.CREATED);
     } catch (err) {
       next(err);
     }
