@@ -6,6 +6,8 @@ import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
 import trackerRouter from "./src/modules/project-tracker/index.ts";
 import v1Router from "./src/interface/v1.router.ts";
+import v2Router from "./src/interface/v2.router.ts";
+import { versionNegotiationMiddleware } from "./src/shared/infrastructure/version.middleware.ts";
 import { dbState } from "./src/modules/project-tracker/db.ts";
 import { ChatService } from "./src/modules/project-tracker/modules/chat/service.ts";
 import { errorHandler } from "./src/shared/infrastructure/error-handler.ts";
@@ -73,8 +75,9 @@ async function startServer() {
   // Mount the Enterprise Project Execution Tracker Module
   app.use("/api/project-tracker", trackerRouter);
 
-  // Enterprise API v1
-  app.use("/api/v1", v1Router);
+  // Apply Version Negotiation and Deprecation Middleware
+  app.use("/api/v1", versionNegotiationMiddleware, v1Router);
+  app.use("/api/v2", v2Router);
 
   // Swagger Documentation
   app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));

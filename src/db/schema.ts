@@ -924,6 +924,107 @@ export const schedulerJobs = pgTable("scheduler_jobs", {
   errorMessage: text("error_message"),
 });
 
+// --- EPOL ENTERPRISE PLATFORM ORCHESTRATION LAYER TABLES ---
+
+// 22. System Configurations Table
+export const systemConfigurations = pgTable("system_configurations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  configKey: varchar("config_key", { length: 255 }).notNull().unique(),
+  configValue: text("config_value").notNull(), // Serialized JSON or raw strings
+  category: varchar("category", { length: 100 }).notNull(), // SLA, NOTIFICATION, ESCALATION, SECURITY, FEATURE_FLAGS
+  updatedBy: varchar("updated_by", { length: 255 }),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 23. Background Jobs (Job Center Registry)
+export const backgroundJobs = pgTable("background_jobs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, RUNNING, COMPLETED, FAILED
+  priority: integer("priority").default(0).notNull(), // Higher is higher priority
+  payload: text("payload"), // Serialized payload parameters
+  retries: integer("retries").default(0).notNull(),
+  maxRetries: integer("max_retries").default(3).notNull(),
+  queueName: varchar("queue_name", { length: 100 }).default("default").notNull(),
+  failureReason: text("failure_reason"),
+  logs: text("logs"), // Text blocks of execution output
+  runAt: timestamp("run_at"), // Delayed executions
+  finishedAt: timestamp("finished_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 24. Delivery Notifications Table (Centralized multi-channel tracing)
+export const deliveryNotifications = pgTable("delivery_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  recipientId: varchar("recipient_id", { length: 255 }).notNull(),
+  channel: varchar("channel", { length: 50 }).notNull(), // IN_APP, EMAIL, SMS, TEAMS, SLACK, WEBHOOK
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, SENT, DELIVERED, READ, FAILED
+  retries: integer("retries").default(0).notNull(),
+  readAt: timestamp("read_at"),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 25. Universal Corporate Activity Timeline
+export const universalTimeline = pgTable("universal_timeline", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id"), // Optional if system-wide
+  entityType: varchar("entity_type", { length: 100 }).notNull(), // LEAD, GOVERNANCE, PLANNING, TASK, EXECUTION, CLOSURE
+  entityId: varchar("entity_id", { length: 255 }).notNull(),
+  activityType: varchar("activity_type", { length: 100 }).notNull(), // CREATED, TRANSITIONED, REJECTED, COMPLETED
+  activityName: varchar("activity_name", { length: 255 }).notNull(),
+  actorId: varchar("actor_id", { length: 255 }).notNull(),
+  details: text("details"), // Expanded contextual parameters
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 26. Integration Configurations
+export const integrationConfigs = pgTable("integration_configs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  connectorName: varchar("connector_name", { length: 100 }).notNull().unique(), // JIRA, GITHUB, SLACK, SAP, SALESFORCE
+  isEnabled: boolean("is_enabled").default(false).notNull(),
+  credentialsJson: text("credentials_json"), // Encrypted configurations
+  mappingJson: text("mapping_json"), // Field mappings metadata
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 27. Event Registry Catalog
+export const eventRegistryCatalog = pgTable("event_registry_catalog", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  eventName: varchar("event_name", { length: 255 }).notNull().unique(), // e.g., project.created
+  publisher: varchar("publisher", { length: 100 }).notNull(), // Owner module name
+  subscribersJson: text("subscribers_json"), // Array of module subscribers
+  schemaJson: text("schema_json"), // JSON draft-07 payload specifications
+  retryPolicyJson: text("retry_policy_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 28. Audit Ledger Table
+export const auditLedger = pgTable("audit_ledger", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actorId: varchar("actor_id", { length: 255 }).notNull(),
+  action: varchar("action", { length: 255 }).notNull(),
+  moduleName: varchar("module_name", { length: 100 }).notNull(), // WORKFLOW, LIFECYCLE, RBAC, FINANCE, CONFIGS
+  details: text("details").notNull(),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 29. Tenant & System Settings Table
+export const tenantSettings = pgTable("tenant_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  orgName: varchar("org_name", { length: 255 }).notNull(),
+  maintenanceMode: boolean("maintenance_mode").default(false).notNull(),
+  licenseKey: varchar("license_key", { length: 255 }),
+  licenseStatus: varchar("license_status", { length: 50 }).default("ACTIVE").notNull(),
+  settingsJson: text("settings_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 
 
 

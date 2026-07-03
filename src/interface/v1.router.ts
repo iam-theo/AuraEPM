@@ -7,6 +7,8 @@ import workflowRouter from "../modules/workflow/interface/workflow.router.ts";
 import portfolioRouter from "../modules/portfolio/interface/portfolio.router.ts";
 import enterpriseRouter from "../modules/enterprise/interface/enterprise.router.ts";
 import lifecycleRouter from "../modules/enterprise/interface/lifecycle.router.ts";
+import orchestrationRouter from "../modules/orchestration/interface/orchestration.router.ts";
+import devPortalRouter from "../modules/orchestration/interface/developer-portal.router.ts";
 
 const v1Router = Router();
 
@@ -18,5 +20,7 @@ v1Router.use("/workflows", workflowRouter);
 v1Router.use("/portfolios", portfolioRouter);
 v1Router.use("/enterprise", enterpriseRouter);
 v1Router.use("/lifecycle", lifecycleRouter);
+v1Router.use("/orchestration", orchestrationRouter);
+v1Router.use("/devportal", devPortalRouter);
 
 export default v1Router;

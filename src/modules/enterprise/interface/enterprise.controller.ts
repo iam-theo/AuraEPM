@@ -26,7 +26,15 @@ export class EnterpriseController {
     try {
       const { executeEnterpriseTests } = await import("../tests/run-enterprise-tests.ts");
       const result = await executeEnterpriseTests();
-      return ResponseFormatter.success(res, result, "Enterprise simulation tests completed successfully");
+      
+      const { executeOrchestrationTests } = await import("../../orchestration/tests/run-orchestration-tests.ts");
+      const orchResult = await executeOrchestrationTests();
+
+      return ResponseFormatter.success(
+        res,
+        { enterpriseResult: result, orchestrationResult: orchResult },
+        "Enterprise & Orchestration (EPOL) simulation tests completed successfully"
+      );
     } catch (err) {
       next(err);
     }

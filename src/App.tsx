@@ -17,6 +17,7 @@ import { ChatView } from "./components/ChatView.tsx";
 import { SettingsView } from "./components/SettingsView.tsx";
 import { AuditReportsView } from "./components/AuditReportsView.tsx";
 import { AICopilot } from "./components/AICopilot.tsx";
+import { OrchestrationView } from "./components/OrchestrationView.tsx";
 
 // Lucide Icons
 import {
@@ -36,11 +37,13 @@ import {
   Radio,
   Globe,
   MessageSquare,
+  Layers,
   Settings as SettingsIcon
 } from "lucide-react";
 
 type Tab =
   | "dashboard"
+  | "orchestration"
   | "team"
   | "tasks"
   | "gantt"
@@ -113,6 +116,8 @@ export default function App() {
       switch (activeTab) {
         case "dashboard":
           return <DashboardView projectId={selectedProjectId} />;
+        case "orchestration":
+          return <OrchestrationView projectId={selectedProjectId} />;
         case "team":
           return <TeamView projectId={selectedProjectId} />;
         case "tasks":
@@ -149,6 +154,7 @@ export default function App() {
 
   const sidebarTabs: { id: Tab; label: string; icon: React.ComponentType<any> }[] = [
     { id: "dashboard", label: "Overview Dashboard", icon: LayoutDashboard },
+    { id: "orchestration", label: "EPOL Orchestration Center", icon: Layers },
     { id: "team", label: "Resource Assignment", icon: Users },
     { id: "tasks", label: "Work Packages (Tasks)", icon: CheckSquare },
     { id: "gantt", label: "Gantt Timeline Schedule", icon: Compass },
