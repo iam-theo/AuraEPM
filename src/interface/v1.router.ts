@@ -1,0 +1,20 @@
+import { Router } from "express";
+import projectRouter from "../modules/projects/interface/project.router.ts";
+import taskRouter from "../modules/tasks/interface/task.router.ts";
+import riskIssueRouter from "../modules/issues-risks/interface/risk-issue.router.ts";
+import authRouter from "../modules/authorization/interface/authorization.router.ts";
+import workflowRouter from "../modules/workflow/interface/workflow.router.ts";
+import portfolioRouter from "../modules/portfolio/interface/portfolio.router.ts";
+import enterpriseRouter from "../modules/enterprise/interface/enterprise.router.ts";
+
+const v1Router = Router();
+
+v1Router.use("/projects", projectRouter);
+v1Router.use("/tasks", taskRouter);
+v1Router.use("/risks-issues", riskIssueRouter);
+v1Router.use("/auth", authRouter);
+v1Router.use("/workflows", workflowRouter);
+v1Router.use("/portfolios", portfolioRouter);
+v1Router.use("/enterprise", enterpriseRouter);
+
+export default v1Router;

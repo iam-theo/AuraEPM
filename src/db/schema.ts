@@ -1,0 +1,653 @@
+import { pgTable, uuid, text, timestamp, boolean, varchar, pgEnum, integer, decimal, index, uniqueIndex } from "drizzle-orm/pg-core";
+
+// Enums
+export const projectStatusEnum = pgEnum("project_status", ["DRAFT", "PLANNING", "ACTIVE", "ON_HOLD", "COMPLETED", "ARCHIVED"]);
+export const projectHealthEnum = pgEnum("project_health", ["STABLE", "AT_RISK", "CRITICAL", "ON_TRACK"]);
+export const taskStatusEnum = pgEnum("task_status", ["DRAFT", "ASSIGNED", "IN_PROGRESS", "BLOCKED", "REVIEW", "COMPLETED", "ARCHIVED"]);
+export const issueStatusEnum = pgEnum("issue_status", ["OPEN", "ASSIGNED", "IN_PROGRESS", "RESOLVED", "CLOSED"]);
+export const riskStatusEnum = pgEnum("risk_status", ["IDENTIFIED", "ASSESSED", "MITIGATED", "ACCEPTED", "CLOSED"]);
+export const priorityEnum = pgEnum("priority", ["LOW", "MEDIUM", "HIGH", "URGENT"]);
+export const portfolioStatusEnum = pgEnum("portfolio_status", ["ACTIVE", "ARCHIVED"]);
+export const programStatusEnum = pgEnum("program_status", ["ACTIVE", "ON_HOLD", "COMPLETED", "ARCHIVED"]);
+export const resourceTypeEnum = pgEnum("resource_type", ["EMPLOYEE", "CONTRACTOR"]);
+export const resourceStatusEnum = pgEnum("resource_status", ["ACTIVE", "ON_LEAVE", "INACTIVE"]);
+
+// Portfolios Table
+export const portfolios = pgTable("portfolios", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  managerId: varchar("manager_id", { length: 255 }).notNull(),
+  budget: decimal("budget", { precision: 15, scale: 2 }),
+  status: portfolioStatusEnum("status").default("ACTIVE").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Programs Table
+export const programs = pgTable("programs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  portfolioId: uuid("portfolio_id").references(() => portfolios.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  managerId: varchar("manager_id", { length: 255 }).notNull(),
+  budget: decimal("budget", { precision: 15, scale: 2 }),
+  status: programStatusEnum("status").default("ACTIVE").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Resources Table
+export const resources = pgTable("resources", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: resourceTypeEnum("type").notNull(),
+  department: varchar("department", { length: 100 }),
+  costPerHour: decimal("cost_per_hour", { precision: 10, scale: 2 }),
+  status: resourceStatusEnum("status").default("ACTIVE").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Resource Allocations Table
+export const resourceAllocations = pgTable("resource_allocations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").references(() => resources.id).notNull(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  allocationPercentage: integer("allocation_percentage").default(100).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Projects Table (Root Aggregate)
+export const projects = pgTable("projects", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  programId: uuid("program_id").references(() => programs.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  status: projectStatusEnum("status").default("DRAFT").notNull(),
+  health: projectHealthEnum("health").default("ON_TRACK").notNull(),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  managerId: varchar("manager_id", { length: 255 }), // User ID from Firebase
+  clientName: varchar("client_name", { length: 255 }),
+  budget: decimal("budget", { precision: 12, scale: 2 }),
+  actualCost: decimal("actual_cost", { precision: 12, scale: 2 }).default("0"),
+  healthScore: integer("health_score").default(100),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Tasks Table
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  status: taskStatusEnum("status").default("DRAFT").notNull(),
+  priority: priorityEnum("priority").default("MEDIUM").notNull(),
+  assigneeId: varchar("assignee_id", { length: 255 }),
+  dueDate: timestamp("due_date"),
+  estimatedHours: decimal("estimated_hours", { precision: 5, scale: 2 }),
+  actualHours: decimal("actual_hours", { precision: 5, scale: 2 }).default("0"),
+  completionPercentage: integer("completion_percentage").default(0),
+  parentId: uuid("parent_id"), // For WBS / Subtasks
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Issues & Risks Table
+export const risksAndIssues = pgTable("risks_and_issues", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(), // 'ISSUE' or 'RISK'
+  status: varchar("status", { length: 50 }).notNull(), // Polymorphic based on type
+  priority: priorityEnum("priority").default("MEDIUM").notNull(),
+  ownerId: varchar("owner_id", { length: 255 }),
+  mitigationPlan: text("mitigation_plan"),
+  impact: text("impact"),
+  probability: integer("probability"), // 1-100 for Risks
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Deliverables & Documents
+export const deliverables = pgTable("deliverables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(),
+  dueDate: timestamp("due_date"),
+  fileUrl: text("file_url"),
+  version: varchar("version", { length: 50 }).default("1.0.0"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Audit Log
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  action: varchar("action", { length: 255 }).notNull(),
+  entityType: varchar("entity_type", { length: 50 }).notNull(),
+  entityId: varchar("entity_id", { length: 255 }).notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Notifications
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").default(false).notNull(),
+  type: varchar("type", { length: 50 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Chat Messages
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  authorId: varchar("author_id", { length: 255 }).notNull(),
+  authorName: varchar("author_name", { length: 255 }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// --- ENTERPRISE RBAC & PBAC SCHEMA ---
+
+// Permission Categories Table
+export const permissionCategories = pgTable("permission_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  code: varchar("code", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Permission Groups Table
+export const permissionGroups = pgTable("permission_groups", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  categoryId: uuid("category_id").references(() => permissionCategories.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  code: varchar("code", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Permissions Table
+export const permissions = pgTable("permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  groupId: uuid("group_id").references(() => permissionGroups.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull().unique(), // dot notation (e.g., projects.create)
+  label: varchar("label", { length: 255 }).notNull(),
+  description: text("description"),
+  isSystem: boolean("is_system").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Roles Table
+export const roles = pgTable("roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  code: varchar("code", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  isSystem: boolean("is_system").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Role Permissions Mapping Table
+export const rolePermissions = pgTable("role_permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  roleId: uuid("role_id").references(() => roles.id).notNull(),
+  permissionId: uuid("permission_id").references(() => permissions.id).notNull(),
+  assignedBy: varchar("assigned_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("role_perm_idx").on(table.roleId, table.permissionId)
+]);
+
+// User Roles Mapping Table
+export const userRoles = pgTable("user_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull(), // string Firebase user ID
+  roleId: uuid("role_id").references(() => roles.id).notNull(),
+  assignedBy: varchar("assigned_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("user_role_idx").on(table.userId, table.roleId)
+]);
+
+// User Permissions Mapping Table (Direct overrides, dynamic PBAC)
+export const userPermissions = pgTable("user_permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  permissionId: uuid("permission_id").references(() => permissions.id).notNull(),
+  type: varchar("type", { length: 50 }).default("ALLOW").notNull(), // "ALLOW" or "DENY" override
+  assignedBy: varchar("assigned_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("user_perm_idx").on(table.userId, table.permissionId)
+]);
+
+// Permission Audit Logs Table
+export const permissionAuditLogs = pgTable("permission_audit_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  actorId: varchar("actor_id", { length: 255 }).notNull(),
+  action: varchar("action", { length: 255 }).notNull(), // ROLE_CREATE, PERMISSION_ASSIGN, etc.
+  targetType: varchar("target_type", { length: 50 }).notNull(), // ROLE, USER, PERMISSION, etc.
+  targetId: varchar("target_id", { length: 255 }).notNull(),
+  details: text("details"),
+  ipAddress: varchar("ip_address", { length: 45 }),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("perm_audit_actor_idx").on(table.actorId),
+  index("perm_audit_target_idx").on(table.targetType, table.targetId)
+]);
+
+
+// --- ENTERPRISE WORKFLOW ENGINE SCHEMA ---
+
+// 1. Workflow Definitions Table
+export const workflowDefinitions = pgTable("workflow_definitions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true).notNull(),
+  latestVersion: integer("latest_version").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  uniqueIndex("workflow_def_code_idx").on(table.code)
+]);
+
+// 2. Workflow Versions Table
+export const workflowVersions = pgTable("workflow_versions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workflowId: uuid("workflow_id").references(() => workflowDefinitions.id).notNull(),
+  version: integer("version").notNull(),
+  definition: text("definition"), // Stored JSON configuration of states and transitions
+  isActive: boolean("is_active").default(false).notNull(),
+  createdBy: varchar("created_by", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_ver_parent_idx").on(table.workflowId)
+]);
+
+// 3. Workflow States Table
+export const workflowStates = pgTable("workflow_states", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workflowId: uuid("workflow_id").references(() => workflowDefinitions.id).notNull(),
+  versionId: uuid("version_id").references(() => workflowVersions.id).notNull(),
+  code: varchar("code", { length: 100 }).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isInitial: boolean("is_initial").default(false).notNull(),
+  isFinal: boolean("is_final").default(false).notNull(),
+  slaHours: integer("sla_hours"), // Service Level Agreement in hours for this state
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_state_parent_idx").on(table.workflowId),
+  uniqueIndex("workflow_state_code_ver_idx").on(table.workflowId, table.versionId, table.code)
+]);
+
+// 4. Workflow Transitions Table
+export const workflowTransitions = pgTable("workflow_transitions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workflowId: uuid("workflow_id").references(() => workflowDefinitions.id).notNull(),
+  versionId: uuid("version_id").references(() => workflowVersions.id).notNull(),
+  fromStateId: uuid("from_state_id").references(() => workflowStates.id), // Nullable for start transitions
+  toStateId: uuid("to_state_id").references(() => workflowStates.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 100 }).notNull(),
+  triggerType: varchar("trigger_type", { length: 50 }).default("MANUAL").notNull(), // MANUAL, AUTO, TIME_OUT
+  slaHours: integer("sla_hours"), // Timeout/escalation limit for the transition
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_trans_parent_idx").on(table.workflowId),
+  index("workflow_trans_states_idx").on(table.fromStateId, table.toStateId)
+]);
+
+// 5. Workflow Roles Table (Who is allowed to execute a transition based on RBAC Roles)
+export const workflowRoles = pgTable("workflow_roles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  transitionId: uuid("transition_id").references(() => workflowTransitions.id).notNull(),
+  roleCode: varchar("role_code", { length: 255 }).notNull(), // RBAC role code, e.g. 'pmo_director'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_roles_trans_idx").on(table.transitionId)
+]);
+
+// 6. Workflow Permissions Table (Who is allowed to execute a transition based on PBAC Permissions)
+export const workflowPermissions = pgTable("workflow_permissions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  transitionId: uuid("transition_id").references(() => workflowTransitions.id).notNull(),
+  permissionCode: varchar("permission_code", { length: 255 }).notNull(), // dot notation permission, e.g. 'projects.approve'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_perms_trans_idx").on(table.transitionId)
+]);
+
+// 7. Workflow Conditions Table (Business Rules Engine config)
+export const workflowConditions = pgTable("workflow_conditions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  transitionId: uuid("transition_id").references(() => workflowTransitions.id).notNull(),
+  logicalOperator: varchar("logical_operator", { length: 10 }).default("AND").notNull(), // AND, OR, NOT
+  field: varchar("field", { length: 255 }), // Field on entity e.g., 'budget', 'riskScore'
+  operator: varchar("operator", { length: 50 }), // GREATER_THAN, LESS_THAN, EQUAL_TO, CONTAINS
+  value: text("value"), // Serialized value to check against
+  customExpression: text("custom_expression"), // Advanced expressions
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_cond_trans_idx").on(table.transitionId)
+]);
+
+// 8. Workflow Actions Table (Extensible Automatic Actions)
+export const workflowActions = pgTable("workflow_actions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  transitionId: uuid("transition_id").references(() => workflowTransitions.id), // If triggered by transition
+  stateId: uuid("state_id").references(() => workflowStates.id), // If triggered by state entry/exit
+  triggerType: varchar("trigger_type", { length: 50 }).notNull(), // ON_ENTRY, ON_EXIT, ON_TRANSITION
+  actionType: varchar("action_type", { length: 50 }).notNull(), // SEND_NOTIFICATION, ASSIGN_USER, CREATE_TASK, EVENT_BUS, WEBHOOK, UPDATE_STATUS
+  parameters: text("parameters"), // JSON configuration parameters for the action
+  executionOrder: integer("execution_order").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_act_trans_idx").on(table.transitionId),
+  index("workflow_act_state_idx").on(table.stateId)
+]);
+
+// 9. Workflow Instances Table
+export const workflowInstances = pgTable("workflow_instances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  workflowId: uuid("workflow_id").references(() => workflowDefinitions.id).notNull(),
+  versionId: uuid("version_id").references(() => workflowVersions.id).notNull(),
+  entityType: varchar("entity_type", { length: 100 }).notNull(), // PROJECT, TASK, RISK, ISSUE, DELIVERABLE, etc.
+  entityId: varchar("entity_id", { length: 255 }).notNull(), // UUID or string id of the governed entity
+  currentStateId: uuid("current_state_id").references(() => workflowStates.id).notNull(),
+  status: varchar("status", { length: 50 }).default("RUNNING").notNull(), // RUNNING, COMPLETED, SUSPENDED, CANCELLED
+  startedBy: varchar("started_by", { length: 255 }).notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  slaDueDate: timestamp("sla_due_date"),
+  optimisticLock: integer("optimistic_lock").default(1).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("workflow_inst_entity_idx").on(table.entityType, table.entityId),
+  index("workflow_inst_state_idx").on(table.currentStateId)
+]);
+
+// 10. Workflow Instance History Table
+export const workflowInstanceHistory = pgTable("workflow_instance_history", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  fromStateId: uuid("from_state_id").references(() => workflowStates.id),
+  toStateId: uuid("to_state_id").references(() => workflowStates.id).notNull(),
+  transitionId: uuid("transition_id").references(() => workflowTransitions.id),
+  actionBy: varchar("action_by", { length: 255 }).notNull(),
+  actionAt: timestamp("action_at").defaultNow().notNull(),
+  durationSeconds: integer("duration_seconds"),
+}, (table) => [
+  index("workflow_hist_inst_idx").on(table.instanceId)
+]);
+
+// 11. Workflow Approvals Table
+export const workflowApprovals = pgTable("workflow_approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  transitionId: uuid("transition_id").references(() => workflowTransitions.id),
+  stateId: uuid("state_id").references(() => workflowStates.id),
+  approverId: varchar("approver_id", { length: 255 }).notNull(), // User UUID
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, DELEGATED, ESCALATED
+  actionAt: timestamp("action_at"),
+  slaDueDate: timestamp("sla_due_date"),
+  isEscalated: boolean("is_escalated").default(false).notNull(),
+  escalatedTo: varchar("escalated_to", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_appr_inst_idx").on(table.instanceId),
+  index("workflow_appr_user_idx").on(table.approverId)
+]);
+
+// 12. Workflow Comments Table
+export const workflowComments = pgTable("workflow_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  stateId: uuid("state_id").references(() => workflowStates.id),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  userName: varchar("user_name", { length: 255 }),
+  commentText: text("comment_text").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_comm_inst_idx").on(table.instanceId)
+]);
+
+// 13. Workflow Notifications Table
+export const workflowNotifications = pgTable("workflow_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  recipientId: varchar("recipient_id", { length: 255 }).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  isSent: boolean("is_sent").default(false).notNull(),
+  sentAt: timestamp("sent_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_notif_inst_idx").on(table.instanceId)
+]);
+
+// 14. Workflow Events Table
+export const workflowEvents = pgTable("workflow_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  eventType: varchar("event_type", { length: 100 }).notNull(), // workflow.started, transitioned, etc.
+  payload: text("payload"), // JSON payload
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_ev_inst_idx").on(table.instanceId)
+]);
+
+// 15. Workflow Variables Table
+export const workflowVariables = pgTable("workflow_variables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  value: text("value"), // Serialized value
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("workflow_var_inst_idx").on(table.instanceId, table.name)
+]);
+
+// 16. Workflow Templates Table
+export const workflowTemplates = pgTable("workflow_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  definition: text("definition"), // Stored JSON configuration for imports
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("workflow_tmpl_code_idx").on(table.code)
+]);
+
+// 17. Workflow Logs Table
+export const workflowLogs = pgTable("workflow_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  instanceId: uuid("instance_id").references(() => workflowInstances.id).notNull(),
+  level: varchar("level", { length: 50 }).default("INFO").notNull(), // INFO, WARN, ERROR, DEBUG
+  message: text("message").notNull(),
+  details: text("details"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("workflow_logs_inst_idx").on(table.instanceId)
+]);
+
+
+// --- ENTERPRISE EPPM NEW TABLES ---
+
+// 1. Resource Skills Table
+export const resourceSkills = pgTable("resource_skills", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").references(() => resources.id).notNull(),
+  skill: varchar("skill", { length: 255 }).notNull(),
+  proficiencyLevel: varchar("proficiency_level", { length: 50 }).notNull(), // BEGINNER, INTERMEDIATE, EXPERT
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 2. Resource Certifications Table
+export const resourceCertifications = pgTable("resource_certifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").references(() => resources.id).notNull(),
+  certificationName: varchar("certification_name", { length: 255 }).notNull(),
+  issuingOrganization: varchar("issuing_organization", { length: 255 }),
+  expiryDate: timestamp("expiry_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 3. Resource Calendars / Leave / Holiday Table
+export const resourceCalendars = pgTable("resource_calendars", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  resourceId: uuid("resource_id").references(() => resources.id), // Nullable if company-wide holiday
+  eventType: varchar("event_type", { length: 100 }).notNull(), // HOLIDAY, LEAVE, TRAINING, SHIFT_PATTERN
+  description: text("description"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  workingHoursPerDay: integer("working_hours_per_day").default(8),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 4. Department Capacities Table (Capacity Planning)
+export const departmentCapacities = pgTable("department_capacities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  department: varchar("department", { length: 100 }).notNull().unique(),
+  totalHeads: integer("total_heads").notNull(),
+  availableHoursPerMonth: integer("available_hours_per_month").notNull(),
+  targetUtilization: integer("target_utilization").default(80).notNull(), // Target %
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 5. Cost Centers Table
+export const costCenters = pgTable("cost_centers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  managerId: varchar("manager_id", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 6. Project Expenses Table
+export const projectExpenses = pgTable("project_expenses", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  costCenterId: uuid("cost_center_id").references(() => costCenters.id),
+  category: varchar("category", { length: 100 }).notNull(), // TRAVEL, SOFTWARE, HARDWARE, etc.
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED
+  approvedBy: varchar("approved_by", { length: 255 }),
+  description: text("description"),
+  expenseDate: timestamp("expense_date").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 7. Baselines Table (Unlimited baselines per project)
+export const projectBaselines = pgTable("project_baselines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  originalScheduleJson: text("original_schedule_json"), // Snapshot of task start/end dates
+  originalBudget: decimal("original_budget", { precision: 15, scale: 2 }),
+  originalScope: text("original_scope"),
+  originalMilestonesJson: text("original_milestones_json"),
+  originalResourcesJson: text("original_resources_json"),
+  isCurrentBaseline: boolean("is_current_baseline").default(false).notNull(),
+  createdBy: varchar("created_by", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 8. Earned Value Management (EVM) Snapshots
+export const evmSnapshots = pgTable("evm_snapshots", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  pv: decimal("pv", { precision: 12, scale: 2 }).notNull(), // Planned Value
+  ev: decimal("ev", { precision: 12, scale: 2 }).notNull(), // Earned Value
+  ac: decimal("ac", { precision: 12, scale: 2 }).notNull(), // Actual Cost
+  spi: decimal("spi", { precision: 5, scale: 2 }).notNull(), // Schedule Performance Index
+  cpi: decimal("cpi", { precision: 5, scale: 2 }).notNull(), // Cost Performance Index
+  eac: decimal("eac", { precision: 12, scale: 2 }).notNull(), // Estimate At Completion
+  vac: decimal("vac", { precision: 12, scale: 2 }).notNull(), // Variance At Completion
+  tcpi: decimal("tcpi", { precision: 5, scale: 2 }).notNull(), // To Complete Performance Index
+  snapshotDate: timestamp("snapshot_date").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 9. Change Requests Table
+export const changeRequests = pgTable("change_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").references(() => projects.id).notNull(),
+  title: varchar("title", { length: 255 }).notNull(),
+  description: text("description").notNull(),
+  impactAnalysis: text("impact_analysis"),
+  proposedBudgetChange: decimal("proposed_budget_change", { precision: 12, scale: 2 }).default("0"),
+  proposedScheduleChangeDays: integer("proposed_schedule_change_days").default(0),
+  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, IMPLEMENTED
+  approvalWorkflowInstanceId: uuid("approval_workflow_instance_id"),
+  createdBy: varchar("created_by", { length: 255 }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 10. Project Templates Table
+export const projectTemplates = pgTable("project_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull().unique(),
+  description: text("description"),
+  tasksJson: text("tasks_json"), // Template tasks list JSON
+  milestonesJson: text("milestones_json"),
+  risksJson: text("risks_json"),
+  workflowTemplatesJson: text("workflow_templates_json"),
+  budgetTemplatesJson: text("budget_templates_json"),
+  checklistTemplatesJson: text("checklist_templates_json"),
+  documentTemplatesJson: text("document_templates_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 11. KPI Metrics Table
+export const kpiMetrics = pgTable("kpi_metrics", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entityType: varchar("entity_type", { length: 50 }).notNull(), // PORTFOLIO, PROGRAM, PROJECT, ENTERPRISE
+  entityId: uuid("entity_id").notNull(),
+  kpiName: varchar("kpi_name", { length: 100 }).notNull(),
+  kpiValue: decimal("kpi_value", { precision: 12, scale: 2 }).notNull(),
+  calculatedAt: timestamp("calculated_at").defaultNow().notNull(),
+});
+
+
+
