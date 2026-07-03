@@ -14,10 +14,10 @@ export class ConfigurationCenterService {
   private cache = new Map<string, any>();
 
   constructor() {
-    this.seedDefaultConfigs();
+    // Initialization deferred to init() method
   }
 
-  private async seedDefaultConfigs() {
+  public async seedDefaultConfigs() {
     try {
       const defaults: ConfigItem[] = [
         {

@@ -44,6 +44,15 @@ export class OrchestrationService {
     return OrchestrationService.instance;
   }
 
+  public async init() {
+    logger.info("[Orchestrator] Initializing core services and seeding configurations...");
+    await this.configCenter.seedDefaultConfigs();
+    await this.integrationHub.seedDefaultConnectors();
+    await this.eventRegistry.seedEventRegistry();
+    await this.systemAdmin.seedDefaultSettings();
+    logger.info("[Orchestrator] Core services initialization complete.");
+  }
+
   private registerEventListeners(): void {
     logger.info("[Orchestrator] Registering central EPOL system event listeners...");
 

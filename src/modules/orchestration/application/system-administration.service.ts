@@ -5,10 +5,10 @@ import logger from "../../../shared/infrastructure/logger.ts";
 
 export class SystemAdministrationService {
   constructor() {
-    this.seedDefaultSettings();
+    // Initialization deferred to init() method
   }
 
-  private async seedDefaultSettings() {
+  public async seedDefaultSettings() {
     try {
       const existing = await db.select().from(tenantSettings).limit(1);
       if (existing.length === 0) {

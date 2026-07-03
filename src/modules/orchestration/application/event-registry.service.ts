@@ -5,10 +5,10 @@ import logger from "../../../shared/infrastructure/logger.ts";
 
 export class EventRegistryService {
   constructor() {
-    this.seedEventRegistry();
+    // Initialization deferred to init() method
   }
 
-  private async seedEventRegistry() {
+  public async seedEventRegistry() {
     try {
       const defaultEvents = [
         {

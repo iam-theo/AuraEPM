@@ -5,10 +5,10 @@ import logger from "../../../shared/infrastructure/logger.ts";
 
 export class IntegrationHubService {
   constructor() {
-    this.seedDefaultConnectors();
+    // Initialization deferred to init() method
   }
 
-  private async seedDefaultConnectors() {
+  public async seedDefaultConnectors() {
     try {
       const defaultConnectors = [
         { name: "SAP", isEnabled: true },

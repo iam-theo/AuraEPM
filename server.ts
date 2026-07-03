@@ -1,6 +1,6 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
-import dotenv from "dotenv";
 import http from "http";
 import { Server as SocketIOServer } from "socket.io";
 import { createServer as createViteServer } from "vite";
@@ -16,9 +16,7 @@ import { specs } from "./src/shared/infrastructure/swagger.ts";
 import * as admin from "firebase-admin";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { seedAuthorization } from "./src/modules/authorization/infrastructure/seeder.ts";
-
-// Initialize environment variables
-dotenv.config();
+import { orchestrator } from "./src/modules/orchestration/application/orchestration.service.ts";
 
 // Initialize Firebase Admin
 if (getApps().length === 0) {
@@ -31,6 +29,13 @@ async function startServer() {
     await seedAuthorization();
   } catch (err) {
     console.error("Warning: Seeding initial permissions failed. Database may not be ready or migrating:", err);
+  }
+
+  // Initialize orchestration services sequentially
+  try {
+    await orchestrator.init();
+  } catch (err) {
+    console.error("Warning: Orchestrator initialization failed:", err);
   }
 
   const app = express();
