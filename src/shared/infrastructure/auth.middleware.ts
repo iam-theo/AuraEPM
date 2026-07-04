@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getAuth } from "firebase-admin/auth";
+import jwt from "jsonwebtoken";
 import { UnauthorizedError } from "./errors.ts";
 
 export const authMiddleware = async (req: any, res: Response, next: NextFunction) => {
@@ -10,7 +10,8 @@ export const authMiddleware = async (req: any, res: Response, next: NextFunction
 
   const token = authHeader.split("Bearer ")[1];
   try {
-    const decodedToken = await getAuth().verifyIdToken(token);
+    const accessSecret = process.env.JWT_ACCESS_SECRET || "default_access_secret_2026";
+    const decodedToken = jwt.verify(token, accessSecret);
     req.user = decodedToken;
     next();
   } catch (error) {
