@@ -18,8 +18,8 @@ export class IamService {
   }
 
   private async getDefaultPassword(): Promise<string> {
-    const [config] = await db.select().from(systemConfigurations).where(eq(systemConfigurations.key, "DEFAULT_USER_PASSWORD"));
-    return config?.value || "Welcome@123";
+    const [config] = await db.select().from(systemConfigurations).where(eq(systemConfigurations.configKey, "DEFAULT_USER_PASSWORD"));
+    return config?.configValue || "Welcome@123";
   }
 
   private hashToken(token: string): string {

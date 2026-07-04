@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import rateLimit from "express-rate-limit";
 import { IamController } from "./iam.controller.ts";
 import { IamService } from "../application/iam.service.ts";
@@ -9,6 +9,11 @@ const router = Router();
 const repository = new DrizzleIamRepository();
 const service = new IamService(repository);
 const controller = new IamController(service);
+
+const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -52,7 +57,7 @@ const generalLimiter = rateLimit({
  *       201:
  *         description: User registered
  */
-router.post("/register", generalLimiter, controller.registerUser);
+router.post("/register", generalLimiter, asyncHandler(controller.registerUser));
 
 /**
  * @swagger
@@ -77,7 +82,7 @@ router.post("/register", generalLimiter, controller.registerUser);
  *       200:
  *         description: Tokens
  */
-router.post("/login", loginLimiter, controller.login);
+router.post("/login", loginLimiter, asyncHandler(controller.login));
 
 /**
  * @swagger
@@ -98,7 +103,7 @@ router.post("/login", loginLimiter, controller.login);
  *       200:
  *         description: Tokens
  */
-router.post("/refresh", generalLimiter, controller.refresh);
+router.post("/refresh", generalLimiter, asyncHandler(controller.refresh));
 
 /**
  * @swagger
@@ -112,7 +117,7 @@ router.post("/refresh", generalLimiter, controller.refresh);
  *       204:
  *         description: Logged out
  */
-router.post("/logout", authMiddleware, controller.logout);
+router.post("/logout", authMiddleware, asyncHandler(controller.logout));
 
 /**
  * @swagger
@@ -126,7 +131,7 @@ router.post("/logout", authMiddleware, controller.logout);
  *       200:
  *         description: User profile
  */
-router.get("/me", authMiddleware, controller.getMe);
+router.get("/me", authMiddleware, asyncHandler(controller.getMe));
 
 /**
  * @swagger
@@ -149,7 +154,7 @@ router.get("/me", authMiddleware, controller.getMe);
  *       200:
  *         description: List of users
  */
-router.get("/users", authMiddleware, controller.getUsers);
+router.get("/users", authMiddleware, asyncHandler(controller.getUsers));
 
 /**
  * @swagger
@@ -169,7 +174,7 @@ router.get("/users", authMiddleware, controller.getUsers);
  *       201:
  *         description: User created
  */
-router.post("/users", authMiddleware, controller.registerUser);
+router.post("/users", authMiddleware, asyncHandler(controller.registerUser));
 
 /**
  * @swagger
@@ -195,7 +200,7 @@ router.post("/users", authMiddleware, controller.registerUser);
  *       200:
  *         description: User updated
  */
-router.put("/users/:id", authMiddleware, controller.updateUser);
+router.put("/users/:id", authMiddleware, asyncHandler(controller.updateUser));
 
 /**
  * @swagger
@@ -215,7 +220,7 @@ router.put("/users/:id", authMiddleware, controller.updateUser);
  *       204:
  *         description: User deleted
  */
-router.delete("/users/:id", authMiddleware, controller.deleteUser);
+router.delete("/users/:id", authMiddleware, asyncHandler(controller.deleteUser));
 
 /**
  * @swagger
@@ -236,7 +241,7 @@ router.delete("/users/:id", authMiddleware, controller.deleteUser);
  *       200:
  *         description: Reset request processed
  */
-router.post("/forgot-password", forgotPasswordLimiter, controller.forgotPassword);
+router.post("/forgot-password", forgotPasswordLimiter, asyncHandler(controller.forgotPassword));
 
 /**
  * @swagger
@@ -259,7 +264,7 @@ router.post("/forgot-password", forgotPasswordLimiter, controller.forgotPassword
  *       200:
  *         description: Password reset successful
  */
-router.post("/reset-password", controller.resetPassword);
+router.post("/reset-password", asyncHandler(controller.resetPassword));
 
 /**
  * @swagger
@@ -284,7 +289,7 @@ router.post("/reset-password", controller.resetPassword);
  *       200:
  *         description: Password changed
  */
-router.post("/change-password", authMiddleware, controller.changePassword);
+router.post("/change-password", authMiddleware, asyncHandler(controller.changePassword));
 
 /**
  * @swagger
@@ -298,7 +303,7 @@ router.post("/change-password", authMiddleware, controller.changePassword);
  *       200:
  *         description: List of sessions
  */
-router.get("/sessions", authMiddleware, controller.getSessions);
+router.get("/sessions", authMiddleware, asyncHandler(controller.getSessions));
 
 /**
  * @swagger
@@ -318,7 +323,7 @@ router.get("/sessions", authMiddleware, controller.getSessions);
  *       204:
  *         description: Session terminated
  */
-router.delete("/sessions/:id", authMiddleware, controller.terminateSession);
+router.delete("/sessions/:id", authMiddleware, asyncHandler(controller.terminateSession));
 
 /**
  * @swagger
@@ -332,6 +337,6 @@ router.delete("/sessions/:id", authMiddleware, controller.terminateSession);
  *       204:
  *         description: All sessions terminated
  */
-router.delete("/sessions", authMiddleware, controller.terminateAllSessions);
+router.delete("/sessions", authMiddleware, asyncHandler(controller.terminateAllSessions));
 
 export default router;
