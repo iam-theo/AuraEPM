@@ -10,6 +10,7 @@ interface Props {
 export function IssuesRisksView({ projectId }: Props) {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [risks, setRisks] = useState<Risk[]>([]);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Tab: "issues" or "risks"
@@ -33,17 +34,25 @@ export function IssuesRisksView({ projectId }: Props) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [iList, rList] = await Promise.all([
+      const [iList, rList, teamList] = await Promise.all([
         api.getIssues(projectId),
-        api.getRisks(projectId)
+        api.getRisks(projectId),
+        api.getTeam(projectId).catch(() => [])
       ]);
       setIssues(iList);
       setRisks(rList);
+      setTeamMembers(teamList);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getMemberName = (id: string | null) => {
+    if (!id) return "Unassigned";
+    const member = teamMembers.find(m => m.id === id || m.userId === id);
+    return member ? member.name : "Unassigned";
   };
 
   useEffect(() => {
@@ -408,7 +417,7 @@ export function IssuesRisksView({ projectId }: Props) {
 
                 <div className="flex justify-between items-center text-[10px] pt-3 border-t border-zinc-850/60 text-zinc-500">
                   <span>Risk Status: <strong className="font-sans text-zinc-300">{r.status}</strong></span>
-                  <span className="font-mono">Owner: Alex Rivera</span>
+                  <span className="font-mono">Owner: {getMemberName(r.ownerId)}</span>
                 </div>
               </div>
             ))}

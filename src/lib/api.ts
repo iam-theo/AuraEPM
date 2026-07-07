@@ -9,9 +9,11 @@ const BASE_URL = "/api/project-tracker";
 
 export async function request(endpoint: string, options: RequestInit = {}) {
   try {
+    const token = localStorage.getItem("accessToken");
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       headers: {
         "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,
@@ -21,9 +23,15 @@ export async function request(endpoint: string, options: RequestInit = {}) {
       return await res.text();
     }
 
+    const contentType = res.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const text = await res.text();
+      throw new Error(text || `HTTP Error ${res.status}`);
+    }
+
     const json = await res.json();
-    if (!json.success) {
-      throw new Error(json.message || "API request failed");
+    if (!res.ok || !json.success) {
+      throw new Error(json.error || json.message || "API request failed");
     }
     return json.data;
   } catch (err: any) {
@@ -32,14 +40,83 @@ export async function request(endpoint: string, options: RequestInit = {}) {
   }
 }
 
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("accessToken");
+  return token ? { "Authorization": `Bearer ${token}` } : {};
+};
+
+const v1Fetch = (url: string, options: RequestInit = {}) => {
+  return fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+      ...options.headers,
+    },
+  }).then(async res => {
+    const contentType = res.headers.get("content-type");
+    let data: any;
+    if (contentType && contentType.includes("application/json")) {
+      data = await res.json();
+    } else {
+      const text = await res.text();
+      throw new Error(text || `HTTP Error ${res.status}`);
+    }
+
+    if (!res.ok) {
+      throw new Error(data?.error || data?.message || `HTTP Error ${res.status}`);
+    }
+
+    if (data.success === false) {
+      throw new Error(data.error || data.message || "Request failed");
+    }
+
+    return data.data !== undefined ? data.data : data;
+  });
+};
+
 export const api = {
   // Dashboard
   getDashboard: (projectId?: string) => 
     request(`/dashboard/summary${projectId ? `?projectId=${projectId}` : ""}`),
 
   // Projects Integration
-  getProjectsList: () => 
-    fetch("/api/projects").then(res => res.json()).then(res => res.data),
+  getProjectsList: () => v1Fetch("/api/v1/projects"),
+  createProject: (data: any) => v1Fetch("/api/v1/projects", { method: "POST", body: JSON.stringify(data) }),
+
+  // Enterprise Lifecycle
+  getLifecycleTemplates: () => v1Fetch("/api/v1/lifecycle/templates"),
+  getLifecycleTemplateById: (templateId: string) => v1Fetch(`/api/v1/lifecycle/templates/${templateId}`),
+  updateLifecycleTemplate: (templateId: string, data: any) => v1Fetch(`/api/v1/lifecycle/templates/${templateId}`, { method: "PUT", body: JSON.stringify(data) }),
+  getLifecycleDashboard: () => v1Fetch("/api/v1/lifecycle/dashboard"),
+  getLifecycleInstance: (projectId: string) => v1Fetch(`/api/v1/lifecycle/instances/${projectId}`),
+  seedLifecycleTemplate: () => v1Fetch("/api/v1/lifecycle/seed", { method: "POST" }),
+  runSLACronJobs: () => v1Fetch("/api/v1/lifecycle/sla/cron", { method: "POST" }),
+  createLifecycleInstance: (data: { projectId: string, templateId: string }) => v1Fetch("/api/v1/lifecycle/instances", { method: "POST", body: JSON.stringify(data) }),
+  uploadLifecycleDocument: (instanceId: string, stageDocumentId: string, formData: FormData) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/documents/${stageDocumentId}/upload`, { 
+      method: "POST", 
+      body: formData,
+      headers: {} // FormData should not have Content-Type header manually set
+    }),
+  verifyLifecycleDocument: (documentVersionId: string, data: { status: string, notes?: string }) =>
+    v1Fetch(`/api/v1/lifecycle/documents/${documentVersionId}/verify`, { method: "POST", body: JSON.stringify(data) }),
+  completeLifecycleChecklist: (instanceId: string, checklistId: string, data: { isCompleted: boolean, notes?: string }) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/checklists/${checklistId}/complete`, { method: "POST", body: JSON.stringify(data) }),
+  submitStageApprovalRole: (instanceId: string, stageId: string, data: { role: string, status: string, comments?: string, digitalSignature?: string }) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/stages/${stageId}/approve`, { method: "POST", body: JSON.stringify(data) }),
+  addLifecycleCommentMessage: (instanceId: string, stageId: string, data: { content: string, parentCommentId?: string }) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/stages/${stageId}/comments`, { method: "POST", body: JSON.stringify(data) }),
+  submitHeadOfOperationsReviewGate: (instanceId: string, stageId: string, data: any) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/stages/${stageId}/operations-review`, { method: "POST", body: JSON.stringify(data) }),
+  getStageSLAPerformance: (instanceId: string, stageId: string) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/stages/${stageId}/sla`),
+  submitLifecycleForReview: (instanceId: string) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/submit`, { method: "POST" }),
+  reviewLifecycleStageGate: (instanceId: string, data: { decision: string, comments: string }) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/review`, { method: "POST", body: JSON.stringify(data) }),
+  getLifecycleReadinessStatus: (instanceId: string, stageId: string) =>
+    v1Fetch(`/api/v1/lifecycle/instances/${instanceId}/stages/${stageId}/readiness`),
 
   // Team
   getTeam: (projectId: string) => 
@@ -184,22 +261,48 @@ export const api = {
   // Gemini Agent
   chatWithAgent: (data: { message: string; projectId: string; googleAccessToken?: string; history?: any[] }) =>
     request("/gemini-agent/chat", { method: "POST", body: JSON.stringify(data) }),
+
+  // IAM Administration
+  getRoles: () => v1Fetch("/api/v1/auth/roles"),
+  getPermissions: () => v1Fetch("/api/v1/auth/permissions"),
+  getPermissionMatrix: () => v1Fetch("/api/v1/auth/matrix"),
+  createRole: (data: any) => v1Fetch("/api/v1/auth/roles", { method: "POST", body: JSON.stringify(data) }),
+  updateRole: (code: string, data: any) => v1Fetch(`/api/v1/auth/roles/${code}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteRole: (code: string) => v1Fetch(`/api/v1/auth/roles/${code}`, { method: "DELETE" }),
+  getSecurityLogs: () => v1Fetch("/api/v1/auth/logs"),
+
+  // Dashboard Engine
+  getMyDashboard: () => v1Fetch("/api/v1/dashboards/me"),
+  saveDashboardPreferences: (data: any) => v1Fetch("/api/v1/dashboards/preferences", { method: "POST", body: JSON.stringify(data) }),
+  getWidgets: () => v1Fetch("/api/v1/dashboards/widgets"),
+  createWidget: (data: any) => v1Fetch("/api/v1/dashboards/widgets", { method: "POST", body: JSON.stringify(data) }),
+  createDashboardTemplate: (data: any) => v1Fetch("/api/v1/dashboards/templates", { method: "POST", body: JSON.stringify(data) }),
+
+  // Generic Helpers for new modules
+  get: (url: string) => v1Fetch(`/api${url}`),
+  post: (url: string, data: any) => v1Fetch(`/api${url}`, { 
+    method: "POST", 
+    body: JSON.stringify(data) 
+  }),
+  put: (url: string, data: any) => v1Fetch(`/api${url}`, { 
+    method: "PUT", 
+    body: JSON.stringify(data) 
+  }),
+  delete: (url: string) => v1Fetch(`/api${url}`, { 
+    method: "DELETE" 
+  }),
+
   // ==========================================
   // CHAT MODULE
   // ==========================================
   getChatMessages: async (projectId: string): Promise<ChatMessage[]> => {
-    const res = await fetch(`${BASE_URL}/chat/${projectId}`);
-    const json = await res.json();
-    return json.data || [];
+    return request(`/chat/${projectId}`);
   },
 
   sendChatMessage: async (data: Partial<ChatMessage>): Promise<ChatMessage> => {
-    const res = await fetch(`${BASE_URL}/chat`, {
+    return request("/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
-    const json = await res.json();
-    return json.data;
   },
 };

@@ -1,5 +1,8 @@
 import { dbState, generateUUID, saveDatabase } from "../../db.ts";
 import { Task, Subtask, Milestone, Dependency, TaskStatus } from "../../types.ts";
+import { db } from "../../../../shared/database/index.ts";
+import { eq, inArray } from "drizzle-orm";
+import { tasks as pgTasksTable } from "../../../../db/schema.ts";
 
 export class TasksRepository {
   // ==========================================
@@ -47,23 +50,47 @@ export class TasksRepository {
   }
 
   async createTask(data: Partial<Task>): Promise<Task> {
-    const newTask: Task = {
-      id: generateUUID(),
+    const id = generateUUID();
+    let pgStatus: "DRAFT" | "ASSIGNED" | "IN_PROGRESS" | "BLOCKED" | "REVIEW" | "COMPLETED" | "ARCHIVED" = "ASSIGNED";
+    if (data.status === TaskStatus.IN_REVIEW) {
+      pgStatus = "REVIEW";
+    } else if (data.status === TaskStatus.IN_PROGRESS) {
+      pgStatus = "IN_PROGRESS";
+    } else if (data.status === TaskStatus.DONE) {
+      pgStatus = "ARCHIVED";
+    }
+
+    const [inserted] = await db.insert(pgTasksTable).values({
+      id,
       projectId: data.projectId!,
       title: data.title!,
       description: data.description || "",
+      status: pgStatus,
+      priority: (data.priority || "MEDIUM") as any,
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      assigneeId: (data.assigneeId && data.assigneeId.trim() !== "") ? data.assigneeId : null,
+      parentId: (data.milestoneId && data.milestoneId.trim() !== "") ? data.milestoneId : null,
+      estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : "0",
+      actualHours: "0",
+    }).returning();
+
+    const newTask: Task = {
+      id: inserted.id,
+      projectId: inserted.projectId,
+      title: inserted.title,
+      description: inserted.description || "",
       status: data.status || TaskStatus.TODO,
-      priority: data.priority || data.priority || "MEDIUM" as any,
-      startDate: data.startDate!,
-      dueDate: data.dueDate!,
-      assigneeId: data.assigneeId || null,
-      milestoneId: data.milestoneId || null,
+      priority: inserted.priority as any,
+      startDate: inserted.createdAt ? inserted.createdAt.toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+      dueDate: inserted.dueDate ? inserted.dueDate.toISOString().split("T")[0] : "",
+      assigneeId: inserted.assigneeId || null,
+      milestoneId: inserted.parentId || null,
       labels: data.labels || [],
-      estimatedHours: data.estimatedHours || 0,
-      actualHours: 0,
-      completedAt: data.status === TaskStatus.DONE ? new Date().toISOString() : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      estimatedHours: inserted.estimatedHours ? parseFloat(inserted.estimatedHours) : 0,
+      actualHours: inserted.actualHours ? parseFloat(inserted.actualHours) : 0,
+      completedAt: pgStatus === "ARCHIVED" ? (inserted.updatedAt ? inserted.updatedAt.toISOString() : new Date().toISOString()) : null,
+      createdAt: inserted.createdAt ? inserted.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: inserted.updatedAt ? inserted.updatedAt.toISOString() : new Date().toISOString(),
       deletedAt: null
     };
 
@@ -85,11 +112,42 @@ export class TasksRepository {
       completedAt = null;
     }
 
+    let pgStatus: "DRAFT" | "ASSIGNED" | "IN_PROGRESS" | "BLOCKED" | "REVIEW" | "COMPLETED" | "ARCHIVED" | undefined;
+    if (data.status !== undefined) {
+      if (data.status === TaskStatus.IN_REVIEW) {
+        pgStatus = "REVIEW";
+      } else if (data.status === TaskStatus.IN_PROGRESS) {
+        pgStatus = "IN_PROGRESS";
+      } else if (data.status === TaskStatus.DONE) {
+        pgStatus = "ARCHIVED";
+      } else {
+        pgStatus = "ASSIGNED";
+      }
+    }
+
+    const dueDateVal = data.dueDate ? new Date(data.dueDate) : data.dueDate === null ? null : undefined;
+
+    const [updated] = await db.update(pgTasksTable)
+      .set({
+        title: data.title,
+        description: data.description,
+        status: pgStatus,
+        priority: data.priority as any,
+        dueDate: dueDateVal,
+        assigneeId: (data.assigneeId && data.assigneeId.trim() !== "") ? data.assigneeId : data.assigneeId === null || data.assigneeId === "" ? null : undefined,
+        parentId: (data.milestoneId && data.milestoneId.trim() !== "") ? data.milestoneId : data.milestoneId === null || data.milestoneId === "" ? null : undefined,
+        estimatedHours: data.estimatedHours !== undefined ? String(data.estimatedHours) : undefined,
+        actualHours: data.actualHours !== undefined ? String(data.actualHours) : undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(pgTasksTable.id, id))
+      .returning();
+
     dbState.tasks[index] = {
       ...current,
       ...data,
       completedAt,
-      updatedAt: new Date().toISOString()
+      updatedAt: updated ? updated.updatedAt.toISOString() : new Date().toISOString()
     };
 
     saveDatabase();
@@ -99,6 +157,12 @@ export class TasksRepository {
   async deleteTask(id: string): Promise<boolean> {
     const index = dbState.tasks.findIndex(t => t.id === id && !t.deletedAt);
     if (index === -1) return false;
+
+    await db.update(pgTasksTable)
+      .set({
+        deletedAt: new Date()
+      })
+      .where(eq(pgTasksTable.id, id));
 
     dbState.tasks[index].deletedAt = new Date().toISOString();
     
@@ -114,6 +178,28 @@ export class TasksRepository {
   }
 
   async bulkUpdateTasks(ids: string[], data: Partial<Task>): Promise<number> {
+    let pgStatus: "DRAFT" | "ASSIGNED" | "IN_PROGRESS" | "BLOCKED" | "REVIEW" | "COMPLETED" | "ARCHIVED" | undefined;
+    if (data.status !== undefined) {
+      if (data.status === TaskStatus.IN_REVIEW) {
+        pgStatus = "REVIEW";
+      } else if (data.status === TaskStatus.IN_PROGRESS) {
+        pgStatus = "IN_PROGRESS";
+      } else if (data.status === TaskStatus.DONE) {
+        pgStatus = "ARCHIVED";
+      } else {
+        pgStatus = "ASSIGNED";
+      }
+    }
+
+    await db.update(pgTasksTable)
+      .set({
+        status: pgStatus,
+        priority: data.priority as any,
+        assigneeId: data.assigneeId,
+        updatedAt: new Date(),
+      })
+      .where(inArray(pgTasksTable.id, ids));
+
     let updatedCount = 0;
     dbState.tasks.forEach(t => {
       if (ids.includes(t.id) && !t.deletedAt) {
@@ -130,6 +216,12 @@ export class TasksRepository {
   }
 
   async bulkDeleteTasks(ids: string[]): Promise<number> {
+    await db.update(pgTasksTable)
+      .set({
+        deletedAt: new Date()
+      })
+      .where(inArray(pgTasksTable.id, ids));
+
     let deletedCount = 0;
     dbState.tasks.forEach(t => {
       if (ids.includes(t.id) && !t.deletedAt) {

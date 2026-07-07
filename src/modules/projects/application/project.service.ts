@@ -3,17 +3,27 @@ import { Project, ProjectProps } from "../domain/project.entity.ts";
 import { NotFoundError } from "../../../shared/infrastructure/errors.ts";
 import { eventBus } from "../../../shared/domain/event-bus.ts";
 import { AuditLogger } from "../../../shared/infrastructure/audit-logger.ts";
+import { LifecycleService } from "../../enterprise/application/lifecycle.service.ts";
 
 export class ProjectService {
-  constructor(private readonly projectRepository: IProjectRepository) {}
+  private lifecycleService: LifecycleService;
 
-  async createProject(data: Partial<ProjectProps>, userId: string): Promise<Project> {
+  constructor(private readonly projectRepository: IProjectRepository) {
+    this.lifecycleService = new LifecycleService();
+  }
+
+  async createProject(data: Partial<ProjectProps>, userId: string): Promise<{ project: Project, lifecycle: any }> {
     const project = Project.create(data);
     await this.projectRepository.save(project);
     
     await AuditLogger.log(project.id, userId, "PROJECT_CREATED", "PROJECT", project.id, data);
     eventBus.publish("project.created", project);
-    return project;
+
+    // Default template handling 
+    const templateId = "default";
+    const lifecycle = await this.lifecycleService.createInstance(userId, project.id, templateId);
+
+    return { project, lifecycle };
   }
 
   async getProject(id: string): Promise<Project> {

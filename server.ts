@@ -8,7 +8,7 @@ import trackerRouter from "./src/modules/project-tracker/index.ts";
 import v1Router from "./src/interface/v1.router.ts";
 import v2Router from "./src/interface/v2.router.ts";
 import { versionNegotiationMiddleware } from "./src/shared/infrastructure/version.middleware.ts";
-import { dbState } from "./src/modules/project-tracker/db.ts";
+import { dbState, syncStateFromPostgres } from "./src/modules/project-tracker/index.ts";
 import { ChatService } from "./src/modules/project-tracker/modules/chat/service.ts";
 import { errorHandler } from "./src/shared/infrastructure/error-handler.ts";
 import swaggerUi from "swagger-ui-express";
@@ -16,6 +16,7 @@ import { specs } from "./src/shared/infrastructure/swagger.ts";
 import * as admin from "firebase-admin";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { seedAuthorization } from "./src/modules/authorization/infrastructure/seeder.ts";
+import { seedIAM } from "./src/modules/iam/infrastructure/seeder.ts";
 import { orchestrator } from "./src/modules/orchestration/application/orchestration.service.ts";
 
 // Initialize Firebase Admin
@@ -27,8 +28,9 @@ async function startServer() {
   // Seed initial enterprise permissions and roles mapping
   try {
     await seedAuthorization();
+    await seedIAM();
   } catch (err) {
-    console.error("Warning: Seeding initial permissions failed. Database may not be ready or migrating:", err);
+    console.error("Warning: Seeding initial permissions or users failed. Database may not be ready or migrating:", err);
   }
 
   // Initialize orchestration services sequentially
@@ -39,6 +41,7 @@ async function startServer() {
   }
 
   const app = express();
+  app.set("trust proxy", 1);
   const PORT = 3000;
   const httpServer = http.createServer(app);
   const io = new SocketIOServer(httpServer, {
@@ -67,9 +70,19 @@ async function startServer() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // Middleware to automatically sync state from PostgreSQL before handling queries
+  const syncDbMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    try {
+      await syncStateFromPostgres();
+    } catch (err) {
+      console.error("Middleware failed to sync project-tracker state:", err);
+    }
+    next();
+  };
+
   // Existing Platform APIs (Mocks of Lifecycle Module)
-  app.get("/api/projects", (req, res) => {
-    // Return mock projects which correspond to the pre-existing Lifecycle platform module
+  app.get("/api/projects", syncDbMiddleware, (req, res) => {
+    // Return projects which correspond to the pre-existing Lifecycle platform module
     res.json({
       success: true,
       message: "Projects loaded from Lifecycle Management Module",
@@ -78,7 +91,7 @@ async function startServer() {
   });
 
   // Mount the Enterprise Project Execution Tracker Module
-  app.use("/api/project-tracker", trackerRouter);
+  app.use("/api/project-tracker", syncDbMiddleware, trackerRouter);
 
   // Apply Version Negotiation and Deprecation Middleware
   app.use("/api/v1", versionNegotiationMiddleware, v1Router);
@@ -91,6 +104,9 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "healthy", timestamp: new Date().toISOString() });
   });
+
+  // Serve uploaded governance artifacts
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Setup Vite Dev Server / Static Ingress Fallbacks
   if (process.env.NODE_ENV !== "production") {

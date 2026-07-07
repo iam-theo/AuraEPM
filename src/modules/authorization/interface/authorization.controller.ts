@@ -233,4 +233,72 @@ export class AuthorizationController {
       next(error);
     }
   }
+
+  async listUsers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await authService.listAllUsers();
+      return ResponseFormatter.success(res, data, "All enterprise users retrieved successfully", StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listModules(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await authService.listAllModulesWithFeatures();
+      return ResponseFormatter.success(res, data, "All modules and feature flags retrieved successfully", StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateModule(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const data = await authService.updateModuleStatus(id, status);
+      return ResponseFormatter.success(res, data, `Module [${id}] status updated to [${status}]`, StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateFeature(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      const data = await authService.updateFeatureStatus(id, status);
+      return ResponseFormatter.success(res, data, `Feature flag [${id}] status updated to [${status}]`, StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listPolicies(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await authService.listAllPolicies();
+      return ResponseFormatter.success(res, data, "All organization security policies retrieved successfully", StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async upsertPolicy(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await authService.createOrUpdatePolicy(req.body);
+      return ResponseFormatter.success(res, data, "Security policy saved successfully", StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async deletePolicy(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      await authService.deletePolicy(id);
+      return ResponseFormatter.success(res, null, "Security policy deleted successfully", StatusCode.OK);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

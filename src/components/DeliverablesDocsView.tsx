@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "../lib/api.ts";
 import { Deliverable, Document } from "../modules/project-tracker/types.ts";
 import { Folder, FileText, CheckSquare, Plus, UploadCloud, Search, Trash2, Eye } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext.tsx";
 
 interface Props {
   projectId: string;
@@ -10,6 +11,7 @@ interface Props {
 interface CriteriaItem {
   criteria: string;
   isApproved: boolean;
+  approvedByName?: string;
 }
 
 const parseCriteria = (criteria: string | any): CriteriaItem[] => {
@@ -55,6 +57,7 @@ const parseCriteria = (criteria: string | any): CriteriaItem[] => {
 };
 
 export function DeliverablesDocsView({ projectId }: Props) {
+  const { user } = useAuth();
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [folders, setFolders] = useState<string[]>(["/"]);
@@ -100,8 +103,16 @@ export function DeliverablesDocsView({ projectId }: Props) {
     const parsedCriteria = parseCriteria(d.acceptanceCriteria);
     if (!parsedCriteria[index]) return;
 
+    const reviewerName = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email : "Project Specialist";
+
     const newCriteria = parsedCriteria.map((c, idx) => 
-      idx === index ? { ...c, isApproved: !c.isApproved } : c
+      idx === index 
+        ? { 
+            ...c, 
+            isApproved: !c.isApproved, 
+            approvedByName: !c.isApproved ? reviewerName : undefined 
+          } 
+        : c
     );
 
     // Calculate overall completion status automatically
@@ -230,7 +241,7 @@ export function DeliverablesDocsView({ projectId }: Props) {
                       />
                       <div>
                         <strong className={`block ${c.isApproved ? "text-emerald-400" : "text-zinc-200"}`}>{c.criteria}</strong>
-                        <span className="text-[10px] text-zinc-500 font-mono mt-0.5 block">Approved by: {c.isApproved ? "Alex Rivera" : "Pending Signoff"}</span>
+                        <span className="text-[10px] text-zinc-500 font-mono mt-0.5 block">Approved by: {c.isApproved ? (c.approvedByName || "Alex Rivera") : "Pending Signoff"}</span>
                       </div>
                     </label>
                   ))}

@@ -436,6 +436,33 @@ export class EnterpriseController {
 
   // --- STAGE-GATE GOVERNANCE (PLGS) ENDPOINTS ---
 
+  getTemplates = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const templates = await this.lifecycleService.getTemplates();
+      return ResponseFormatter.success(res, templates, "Templates fetched successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getTemplateById = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const template = await this.lifecycleService.getTemplateById(req.params.templateId);
+      return ResponseFormatter.success(res, template, "Template fetched successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  updateTemplate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await this.lifecycleService.updateTemplate(req.params.templateId, req.body);
+      return ResponseFormatter.success(res, result, "Template updated successfully");
+    } catch (err) {
+      next(err);
+    }
+  };
+
   seedDefaultLifecycleTemplate = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await this.lifecycleService.seedDefaultTemplate();
@@ -469,8 +496,20 @@ export class EnterpriseController {
     try {
       const actorId = (req as any).user?.uid || "system-admin-uid";
       const { instanceId, stageDocumentId } = req.params;
-      const doc = await this.lifecycleService.uploadDocument(actorId, instanceId, stageDocumentId, req.body);
-      return ResponseFormatter.success(res, doc, "Document uploaded successfully", StatusCode.CREATED);
+      
+      if (!req.file) {
+        throw new Error("No file uploaded");
+      }
+
+      const fileData = {
+        fileName: req.file.originalname,
+        tempPath: req.file.path,
+        mimeType: req.file.mimetype,
+        size: req.file.size
+      };
+      
+      const doc = await this.lifecycleService.processUploadedDocument(actorId, instanceId, stageDocumentId, fileData);
+      return ResponseFormatter.success(res, doc, "Document uploaded and processed successfully", StatusCode.CREATED);
     } catch (err) {
       next(err);
     }
@@ -525,6 +564,39 @@ export class EnterpriseController {
         digitalSignature,
       });
       return ResponseFormatter.success(res, review, `Head of Operations Review recorded with status: ${status}`);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  submitLifecycleForReview = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId } = req.params;
+      const instance = await this.lifecycleService.submitStageForReview(actorId, instanceId);
+      return ResponseFormatter.success(res, instance, "Stage submitted for review");
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  reviewLifecycleStageGate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actorId = (req as any).user?.uid || "system-admin-uid";
+      const { instanceId } = req.params;
+      const { decision, comments } = req.body;
+      const instance = await this.lifecycleService.reviewStageGate(actorId, instanceId, decision, comments);
+      return ResponseFormatter.success(res, instance, `Stage gate review completed: ${decision}`);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getLifecycleReadinessStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { instanceId, stageId } = req.params;
+      const readiness = await this.lifecycleService.validateStageReadiness(instanceId, stageId);
+      return ResponseFormatter.success(res, readiness);
     } catch (err) {
       next(err);
     }

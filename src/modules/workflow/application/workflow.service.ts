@@ -1144,7 +1144,7 @@ export class WorkflowService {
   async getWorkflowInstances(workflowId?: string, status?: string, limit = 50, offset = 0): Promise<any[]> {
     const filters = [];
     if (workflowId) filters.push(eq(workflowInstances.workflowId, workflowId));
-    if (status) filters.push(eq(workflowInstances.status, status));
+    if (status) filters.push(eq(workflowInstances.status, status as any));
 
     const q = db.select().from(workflowInstances).limit(limit).offset(offset);
     if (filters.length > 0) {

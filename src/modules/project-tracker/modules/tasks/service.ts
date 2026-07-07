@@ -186,30 +186,21 @@ export class TasksService {
       adjList[d.predecessorId].push(d.successorId);
     });
 
-    // Add proposed edge
-    if (!adjList[succ]) adjList[succ] = [];
-    adjList[succ].push(pred); // reverse test
-
     const visited = new Set<string>();
-    const recStack = new Set<string>();
 
-    const dfs = (node: string): boolean => {
-      if (recStack.has(node)) return true; // cycle detected
-      if (visited.has(node)) return false;
+    const hasPath = (current: string, target: string): boolean => {
+      if (current === target) return true;
+      if (visited.has(current)) return false;
+      visited.add(current);
 
-      visited.add(node);
-      recStack.add(node);
-
-      const neighbors = adjList[node] || [];
+      const neighbors = adjList[current] || [];
       for (const neighbor of neighbors) {
-        if (dfs(neighbor)) return true;
+        if (hasPath(neighbor, target)) return true;
       }
-
-      recStack.delete(node);
       return false;
     };
 
-    return dfs(succ);
+    return hasPath(succ, pred);
   }
 
   private async recalculateMilestoneProgress(projectId: string, milestoneId: string | null): Promise<void> {

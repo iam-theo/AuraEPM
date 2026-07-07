@@ -28,7 +28,7 @@ export class TeamController {
   assignMember = async (req: MockAuthRequest, res: Response) => {
     try {
       const data = await this.service.assignMember(req.body);
-      return sendSuccess(res, "Team member allocated and assigned successfully", data, 21);
+      return sendSuccess(res, "Team member allocated and assigned successfully", data, 201);
     } catch (error: any) {
       return sendError(res, "Failed to assign team member", [error.message]);
     }

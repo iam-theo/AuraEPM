@@ -262,6 +262,7 @@ router.delete("/users/:userId/permissions/:permissionName", authMiddleware, requ
  *       200:
  *         description: User profile
  */
+router.get("/users", authMiddleware, requirePermissions("admin.users"), controller.listUsers);
 router.get("/users/:userId/profile", authMiddleware, requirePermissions("admin.users"), controller.getUserSecurityProfile);
 
 /**
@@ -277,5 +278,13 @@ router.get("/users/:userId/profile", authMiddleware, requirePermissions("admin.u
  *         description: Audit logs
  */
 router.get("/logs", authMiddleware, requirePermissions("admin.logs"), controller.getSecurityAuditLogs);
+
+router.get("/modules", authMiddleware, requirePermissions("admin.permissions"), controller.listModules);
+router.put("/modules/:id", authMiddleware, requirePermissions("admin.permissions"), controller.updateModule);
+router.put("/features/:id", authMiddleware, requirePermissions("admin.permissions"), controller.updateFeature);
+
+router.get("/policies", authMiddleware, requirePermissions("admin.permissions"), controller.listPolicies);
+router.post("/policies", authMiddleware, requirePermissions("admin.permissions"), controller.upsertPolicy);
+router.delete("/policies/:id", authMiddleware, requirePermissions("admin.permissions"), controller.deletePolicy);
 
 export default router;
