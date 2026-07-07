@@ -17,6 +17,7 @@ import * as admin from "firebase-admin";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { seedAuthorization } from "./src/modules/authorization/infrastructure/seeder.ts";
 import { seedIAM } from "./src/modules/iam/infrastructure/seeder.ts";
+import { UserSyncService } from "./src/modules/iam/application/user-sync.service.ts";
 import { orchestrator } from "./src/modules/orchestration/application/orchestration.service.ts";
 
 // Initialize Firebase Admin
@@ -29,6 +30,10 @@ async function startServer() {
   try {
     await seedAuthorization();
     await seedIAM();
+    
+    // Sync users from Projects Database (Source of Truth)
+    const syncService = new UserSyncService();
+    await syncService.syncUsers();
   } catch (err) {
     console.error("Warning: Seeding initial permissions or users failed. Database may not be ready or migrating:", err);
   }

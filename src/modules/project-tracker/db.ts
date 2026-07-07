@@ -829,7 +829,185 @@ function seedDatabase(): DatabaseState {
 
 export async function syncStateFromPostgres() {
   try {
-    const pgProjects = await db.select().from(pgProjectsTable);
+    let pgProjects = await db.select().from(pgProjectsTable);
+
+    if (pgProjects.length === 0) {
+      // Seed Projects
+      const GPX_ID = "p-gpx-payment-gateway-2026";
+      const LRE_ID = "p-lre-retail-expansion-2026";
+      const DGA_ID = "p-dga-governance-audit-2026";
+      const QCI_ID = "p-qci-compute-infra-2026";
+      const MOB_ID = "p-mob-client-rewrite-2026";
+
+      await db.insert(pgProjectsTable).values([
+        {
+          id: GPX_ID,
+          name: "Global Payment Gateway",
+          description: "Global payment processing gateway with webhook integration and fraud detection.",
+          status: "ACTIVE",
+          health: "ON_TRACK",
+          budget: "5400000.00",
+          actualCost: "3672000.00",
+          clientName: "Fintech Expansion"
+        },
+        {
+          id: LRE_ID,
+          name: "Lumina Retail Expansion",
+          description: "Expansion of brick-and-mortar retail footprint to regional centers.",
+          status: "ACTIVE",
+          health: "AT_RISK",
+          budget: "4800000.00",
+          actualCost: "1152000.00",
+          clientName: "Retail Strategy"
+        },
+        {
+          id: DGA_ID,
+          name: "Data Governance Audit",
+          description: "Comprehensive review of enterprise GDPR and security policies.",
+          status: "PLANNING",
+          health: "STABLE",
+          budget: "1200000.00",
+          actualCost: "96000.00",
+          clientName: "Compliance"
+        },
+        {
+          id: QCI_ID,
+          name: "Quantum Compute Infrastructure",
+          description: "Provisioning specialized quantum compute clusters for high-performance R&D.",
+          status: "ACTIVE",
+          health: "ON_TRACK",
+          budget: "6200000.00",
+          actualCost: "3348000.00",
+          clientName: "R&D"
+        },
+        {
+          id: MOB_ID,
+          name: "Mobile Client Rewrite",
+          description: "Re-architecting mobile application to native modular framework.",
+          status: "ACTIVE",
+          health: "CRITICAL",
+          budget: "1000000.00",
+          actualCost: "410000.00",
+          clientName: "Product"
+        }
+      ]);
+
+      // Seed Resources
+      const rMarcus = "r-marcus-thorne-uuid";
+      const rSarah = "r-sarah-jenkins-uuid";
+      const rChen = "r-chen-wei-uuid";
+      const rAmara = "r-amara-okafor-uuid";
+      const rRavi = "r-ravi-kapoor-uuid";
+
+      await db.insert(pgResourcesTable).values([
+        { id: rMarcus, name: "Marcus Thorne", type: "EMPLOYEE", department: "Fintech Expansion" },
+        { id: rSarah, name: "Sarah Jenkins", type: "EMPLOYEE", department: "Retail Strategy" },
+        { id: rChen, name: "Chen Wei", type: "EMPLOYEE", department: "Compliance" },
+        { id: rAmara, name: "Dr. Amara Okafor", type: "EMPLOYEE", department: "R&D" },
+        { id: rRavi, name: "Ravi Kapoor", type: "EMPLOYEE", department: "Product" }
+      ]);
+
+      // Seed Allocations
+      await db.insert(pgResourceAllocationsTable).values([
+        { resourceId: rMarcus, projectId: GPX_ID, startDate: new Date(), allocationPercentage: 100 },
+        { resourceId: rSarah, projectId: LRE_ID, startDate: new Date(), allocationPercentage: 112 },
+        { resourceId: rChen, projectId: DGA_ID, startDate: new Date(), allocationPercentage: 80 },
+        { resourceId: rAmara, projectId: QCI_ID, startDate: new Date(), allocationPercentage: 100 },
+        { resourceId: rRavi, projectId: MOB_ID, startDate: new Date(), allocationPercentage: 100 }
+      ]);
+
+      // Seed Tasks
+      await db.insert(pgTasksTable).values([
+        {
+          projectId: GPX_ID,
+          title: "Integrate Stripe & Adyen webhook layer",
+          description: "Implement robust webhook listeners and transaction mapping.",
+          status: "IN_PROGRESS",
+          priority: "HIGH",
+          assigneeId: "usr-alex",
+          estimatedHours: "40",
+          dueDate: new Date("2026-07-14")
+        },
+        {
+          id: "lre-121-task-id",
+          projectId: LRE_ID,
+          title: "Store locator API contract review",
+          description: "Review geo-location contract specs and endpoint parameters.",
+          status: "IN_PROGRESS",
+          priority: "MEDIUM",
+          assigneeId: "usr-alex",
+          estimatedHours: "24",
+          dueDate: new Date("2026-07-12")
+        },
+        {
+          projectId: MOB_ID,
+          title: "Refactor auth state machine",
+          description: "Clean up native login flow and session renewal loops.",
+          status: "ASSIGNED",
+          priority: "HIGH",
+          assigneeId: "usr-alex",
+          estimatedHours: "32",
+          dueDate: new Date("2026-07-20")
+        },
+        {
+          projectId: DGA_ID,
+          title: "Prompt evaluation harness",
+          description: "Build testing suites for LLM latency and validation rates.",
+          status: "ASSIGNED",
+          priority: "LOW",
+          assigneeId: "usr-alex",
+          estimatedHours: "16",
+          dueDate: new Date("2026-07-15")
+        },
+        {
+          projectId: QCI_ID,
+          title: "Cryogenic rack telemetry ingestion",
+          description: "Integrate temperature logs with Grafana alerting stack.",
+          status: "ASSIGNED",
+          priority: "HIGH",
+          assigneeId: "usr-alex",
+          estimatedHours: "40",
+          dueDate: new Date("2026-07-18")
+        }
+      ]);
+
+      // Seed Risks & Issues
+      await db.insert(pgRisksAndIssuesTable).values([
+        {
+          projectId: GPX_ID,
+          title: "Vendor SLA breach on payment rails",
+          description: "Third-party payment gateway fails to meet 99.9% uptime criteria.",
+          type: "RISK",
+          status: "OPEN",
+          priority: "HIGH",
+          ownerId: "usr-alex",
+          impact: "HIGH",
+          probability: 2
+        },
+        {
+          projectId: LRE_ID,
+          title: "Retail lease renegotiation delay",
+          description: "Landlord negotiations pushing past target lease agreement sign dates.",
+          type: "RISK",
+          status: "OPEN",
+          priority: "HIGH",
+          ownerId: "usr-alex",
+          impact: "HIGH",
+          probability: 3
+        }
+      ]);
+
+      // Seed Audit Logs / Activity Feed
+      await db.insert(pgAuditLogsTable).values([
+        { projectId: LRE_ID, userId: "usr-alex", action: "MOVED_STAGE", entityType: "TASK", entityId: "lre-121-task-id", details: "Sarah J. moved LRE-121 to review" },
+        { projectId: GPX_ID, userId: "usr-alex", action: "COMMENT_ADDED", entityType: "COMMENT", entityId: "gpx-402-comment-id", details: "Marcus T. commented on GPX-402" },
+        { projectId: DGA_ID, userId: "usr-alex", action: "CLOSED_TASK", entityType: "TASK", entityId: "dga-04-id", details: "Chen W. closed DGA-04" },
+        { projectId: MOB_ID, userId: "usr-alex", action: "OPENED_RISK", entityType: "RISK", entityId: "mob-risk-id", details: "Ravi K. opened risk on MOB" }
+      ]);
+
+      pgProjects = await db.select().from(pgProjectsTable);
+    }
+
     const pgTasks = await db.select().from(pgTasksTable);
     const pgResources = await db.select().from(pgResourcesTable);
     const pgAllocations = await db.select().from(pgResourceAllocationsTable);
@@ -840,7 +1018,25 @@ export async function syncStateFromPostgres() {
     const pgChatMessages = await db.select().from(pgChatMessagesTable);
 
     // Map projects
+    dbState.milestones = [];
     dbState.projects = pgProjects.map(p => {
+      // Extract milestones if they exist in JSON
+      if (p.milestonesJson) {
+        try {
+          const projectMilestones = JSON.parse(p.milestonesJson);
+          if (Array.isArray(projectMilestones)) {
+            projectMilestones.forEach(m => {
+              dbState.milestones.push({
+                ...m,
+                projectId: p.id
+              });
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse milestones JSON for project", p.id);
+        }
+      }
+
       const pTasks = pgTasks.filter(t => t.projectId === p.id);
       const doneTasks = pTasks.filter(t => t.status === "ARCHIVED" || t.status === "REVIEW");
       const progress = pTasks.length > 0 ? Math.round((doneTasks.length / pTasks.length) * 100) : 0;

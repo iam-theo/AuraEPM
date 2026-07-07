@@ -271,7 +271,8 @@ export const PERMISSIONS: PermissionDef[] = [
   { name: "admin.logs", label: "View Raw Server Telemetry Logs", groupCode: "admin", description: "Allows reviewing low-level error histories" },
   { name: "admin.db_maintenance", label: "Perform Database Indexes Rebuilding", groupCode: "admin", description: "Allows running migration routines" },
   { name: "admin.queue_management", label: "Administrate System Action Queues", groupCode: "admin", description: "Allows pausing background processing queues" },
-  { name: "admin.feature_flags", label: "Toggle System Feature Flags", groupCode: "admin", description: "Allows enabling beta feature systems" }
+  { name: "admin.feature_flags", label: "Toggle System Feature Flags", groupCode: "admin", description: "Allows enabling beta feature systems" },
+  { name: "admin.dashboards", label: "Administrate System Dashboards", groupCode: "admin", description: "Allows managing, customising, creating and deleting system dashboards templates and widgets" }
 ];
 
 export const ROLES: RoleDef[] = [
@@ -309,7 +310,7 @@ export const ROLE_PERMISSION_MAPPINGS: Record<string, string[]> = {
     "notifications.view", "notifications.send", "notifications.broadcast", "notifications.delete", "notifications.configure",
     "audit.view", "audit.export", "audit.delete", "audit.archive",
     "settings.system", "settings.security", "settings.workflow", "settings.notification", "settings.project_templates", "settings.lookup_tables",
-    "admin.users", "admin.roles", "admin.permissions", "admin.role_assignment", "admin.user_assignment", "admin.system_config", "admin.backup", "admin.restore", "admin.api_keys", "admin.logs", "admin.db_maintenance", "admin.queue_management", "admin.feature_flags"
+    "admin.users", "admin.roles", "admin.permissions", "admin.role_assignment", "admin.user_assignment", "admin.system_config", "admin.backup", "admin.restore", "admin.api_keys", "admin.logs", "admin.db_maintenance", "admin.queue_management", "admin.feature_flags", "admin.dashboards"
   ],
 
   portfolio_director: [

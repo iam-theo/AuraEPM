@@ -8,7 +8,10 @@ export const authMiddleware = async (req: any, res: Response, next: NextFunction
     return next(new UnauthorizedError("No token provided"));
   }
 
-  const token = authHeader.split("Bearer ")[1];
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (!token || token === "null" || token === "undefined" || token.trim() === "") {
+    return next(new UnauthorizedError("No token provided"));
+  }
   try {
     const accessSecret = process.env.JWT_ACCESS_SECRET || "default_access_secret_2026";
     const decodedToken = jwt.verify(token, accessSecret) as any;

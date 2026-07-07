@@ -9,11 +9,16 @@ export const errorHandler = (
   res: Response,
   next: NextFunction
 ) => {
-  logger.error({ err });
-
   if (err instanceof AppError) {
+    if (err.statusCode && err.statusCode >= 500) {
+      logger.error({ err });
+    } else {
+      logger.warn({ err }, err.message);
+    }
     return ResponseFormatter.error(res, err.message, err.statusCode);
   }
+
+  logger.error({ err });
 
   // Handle Drizzle/Postgres errors specifically if needed here
   

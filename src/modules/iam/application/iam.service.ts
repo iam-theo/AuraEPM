@@ -1,9 +1,10 @@
 import { db } from "../../../shared/database";
+import { users } from "../../../db/iam.schema";
 import { 
   roles, permissions, rolePermissions, userRoles, 
   organizationPolicies, genericStatusEnum 
 } from "../../../db/schema";
-import { eq, and, or, inArray } from "drizzle-orm";
+import { eq, and, or, inArray, desc, isNotNull } from "drizzle-orm";
 
 export class IAMService {
   /**
@@ -36,6 +37,36 @@ export class IAMService {
     // 3. TODO: Apply Organization Policies and Direct User Overrides
     // For now, return role-based permissions
     return Array.from(new Set(grantedPermissions.map(p => p.permissionName)));
+  }
+
+  static async listUsers() {
+    return await db.select().from(users).where(isNotNull(users.id)).orderBy(desc(users.createdAt));
+  }
+
+  static async getUserById(id: string) {
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    return user;
+  }
+
+  static async createUser(data: any) {
+    const [newUser] = await db.insert(users).values({
+      ...data,
+      status: "ACTIVE",
+      isActive: true,
+    }).returning();
+    return newUser;
+  }
+
+  static async updateUser(id: string, data: any) {
+    const [updatedUser] = await db.update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
+  static async deleteUser(id: string) {
+    await db.update(users).set({ deletedAt: new Date(), isActive: false }).where(eq(users.id, id));
   }
 
   static async getRoles() {

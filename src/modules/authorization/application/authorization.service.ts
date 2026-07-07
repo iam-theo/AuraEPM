@@ -1,4 +1,6 @@
-import { eq, and, inArray, sql, or, like } from "drizzle-orm";
+import bcrypt from "bcrypt";
+import { passwords, departmentCapacities } from "../../../db/schema.ts";
+import { eq, and, inArray, sql, or, like, isNotNull } from "drizzle-orm";
 import { db } from "../../../shared/database/index.ts";
 import { 
   roles, 
@@ -773,16 +775,94 @@ export class AuthorizationService {
     return query;
   }
 
+  
+  async createUser(userData: any, roleCode: string, directPermissions: string[] = []): Promise<any> {
+    const existingUser = await db.select().from(users).where(eq(users.email, userData.email)).limit(1);
+    if (existingUser.length > 0) {
+      return existingUser[0];
+    }
+
+    return db.transaction(async (tx) => {
+      // 1. Insert user
+      const [user] = await tx.insert(users).values({
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        email: userData.email,
+        username: userData.username || userData.email.split('@')[0],
+        department: userData.department,
+        jobTitle: userData.jobTitle || "Employee"
+      }).returning();
+
+      // 2. Hash password (default: Password123!)
+      const hash = await bcrypt.hash(userData.password || "Password123!", 10);
+      await tx.insert(passwords).values({
+        userId: user.id,
+        hash,
+        mustChange: true,
+      });
+
+      // 3. Assign role
+      if (roleCode) {
+        const [role] = await tx.select().from(roles).where(eq((roles as any).code, roleCode));
+        if (role) {
+          await tx.insert(userRoles).values({
+            userId: user.id,
+            roleId: role.id,
+            assignedBy: "system",
+          });
+        }
+      }
+
+      // 4. Assign permissions
+      for (const p of directPermissions) {
+        const [perm] = await tx.select().from(permissions).where(eq((permissions as any).name, p));
+        if (perm) {
+          await tx.insert(userPermissions).values({
+            userId: user.id,
+            permissionId: perm.id,
+            type: "ALLOW",
+            assignedBy: "system"
+          });
+        }
+      }
+
+      return user;
+    });
+  }
+
+  async listDepartments(): Promise<string[]> {
+    const deptCaps = await db.select({ department: departmentCapacities.department }).from(departmentCapacities);
+    const userDepts = await db.select({ department: users.department }).from(users).where(isNotNull(users.department));
+    const all = new Set([...deptCaps.map(d => d.department), ...userDepts.map(u => u.department)]);
+    return Array.from(all).filter(Boolean) as string[];
+  }
+
   async listAllUsers(): Promise<any[]> {
-    return db
+    const allUsers = await db
       .select({
         id: users.id,
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
         department: users.department,
+        status: users.status,
       })
       .from(users);
+
+    for (const user of allUsers) {
+      const userRolesList = await db
+        .select({
+          code: roles.code,
+          name: roles.name,
+          color: roles.color,
+          icon: roles.icon
+        })
+        .from(userRoles)
+        .innerJoin(roles, eq(userRoles.roleId, roles.id))
+        .where(eq(userRoles.userId, user.id));
+      (user as any).roles = userRolesList;
+    }
+    return allUsers;
   }
 
   async ensureSeededModulesAndPolicies(): Promise<void> {

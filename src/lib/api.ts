@@ -7,9 +7,17 @@ import { ChatMessage } from "../modules/project-tracker/types.ts";
 
 const BASE_URL = "/api/project-tracker";
 
+const getValidToken = () => {
+  const token = localStorage.getItem("accessToken");
+  if (!token || token === "null" || token === "undefined" || token.trim() === "") {
+    return null;
+  }
+  return token;
+};
+
 export async function request(endpoint: string, options: RequestInit = {}) {
   try {
-    const token = localStorage.getItem("accessToken");
+    const token = getValidToken();
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       headers: {
         "Content-Type": "application/json",
@@ -41,7 +49,7 @@ export async function request(endpoint: string, options: RequestInit = {}) {
 }
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("accessToken");
+  const token = getValidToken();
   return token ? { "Authorization": `Bearer ${token}` } : {};
 };
 
@@ -270,6 +278,18 @@ export const api = {
   updateRole: (code: string, data: any) => v1Fetch(`/api/v1/auth/roles/${code}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteRole: (code: string) => v1Fetch(`/api/v1/auth/roles/${code}`, { method: "DELETE" }),
   getSecurityLogs: () => v1Fetch("/api/v1/auth/logs"),
+  getUserProjects: (id: string) => v1Fetch(`/api/v1/users/${id}/projects`),
+  getUserTasks: (id: string) => v1Fetch(`/api/v1/users/${id}/tasks`),
+  getUserRisksIssues: (id: string) => v1Fetch(`/api/v1/users/${id}/risks-issues`),
+  getUserAuditLogs: (id: string) => v1Fetch(`/api/v1/users/${id}/audit-logs`),
+  getUserChatMessages: (id: string) => v1Fetch(`/api/v1/users/${id}/chat-messages`),
+  getUserChangeRequests: (id: string) => v1Fetch(`/api/v1/users/${id}/change-requests`),
+  getUserSecurityLogs: (id: string) => v1Fetch(`/api/v1/users/${id}/security-logs`),
+  getUserLoginHistory: (id: string) => v1Fetch(`/api/v1/users/${id}/login-history`),
+  getUserResources: (id: string) => v1Fetch(`/api/v1/users/${id}/resources`),
+  getUserMilestones: (id: string) => v1Fetch(`/api/v1/users/${id}/milestones`),
+  getUserRolesById: (id: string) => v1Fetch(`/api/v1/users/${id}/roles`),
+  getUserPermissionsById: (id: string) => v1Fetch(`/api/v1/users/${id}/permissions`),
 
   // Dashboard Engine
   getMyDashboard: () => v1Fetch("/api/v1/dashboards/me"),
