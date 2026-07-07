@@ -14,7 +14,8 @@ export function TeamView({ projectId }: Props) {
   // Create Form State
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState("");
-  const [role, setRole] = useState("Developer");
+  const [roles, setRoles] = useState<any[]>([]);
+  const [role, setRole] = useState("");
   const [email, setEmail] = useState("");
   const [capacity, setCapacity] = useState(40);
   const [allocation, setAllocation] = useState(100);
@@ -27,8 +28,15 @@ export function TeamView({ projectId }: Props) {
   const loadTeam = async () => {
     try {
       setLoading(true);
-      const data = await api.getTeam(projectId);
-      setMembers(data);
+      const [teamData, rolesData] = await Promise.all([
+        api.getTeam(projectId),
+        api.getRoles()
+      ]);
+      setMembers(teamData);
+      setRoles(rolesData || []);
+      if (rolesData?.length > 0 && !role) {
+        setRole(rolesData[0].name);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load team dataset");
     } finally {
@@ -134,11 +142,9 @@ export function TeamView({ projectId }: Props) {
                 onChange={e => setRole(e.target.value)}
                 className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-xs text-zinc-100 focus:outline-none focus:border-indigo-500 transition-colors"
               >
-                <option value="Project Manager">Project Manager</option>
-                <option value="Lead Architect">Lead Architect</option>
-                <option value="Senior Developer">Senior Developer</option>
-                <option value="QA Engineer">QA Engineer</option>
-                <option value="UI/UX Designer">UI/UX Designer</option>
+                {roles?.map(r => (
+                  <option key={r.id} value={r.name}>{r.name}</option>
+                ))}
               </select>
             </div>
             <div>

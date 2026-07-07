@@ -1,10 +1,16 @@
 import { Router } from "express";
 import { EnterpriseController } from "./enterprise.controller.ts";
+import { upload } from "./upload.middleware.ts";
 
 const router = Router();
 const controller = new EnterpriseController();
 
 // 1. Templates & Overviews
+
+router.get("/templates", controller.getTemplates);
+router.get("/templates/:templateId", controller.getTemplateById);
+router.put("/templates/:templateId", controller.updateTemplate);
+
 /**
  * @swagger
  * /lifecycle/seed:
@@ -73,6 +79,21 @@ router.post("/instances", controller.createLifecycleInstance);
 router.get("/instances/:projectId", controller.getLifecycleInstance);
 
 // 3. Document Controls
+/**
+ * @swagger
+ * /lifecycle/instances/{instanceId}/documents/{stageDocumentId}/upload:
+ */
+router.post("/instances/:instanceId/documents/:stageDocumentId/upload", upload.single("file"), controller.uploadLifecycleDocument);
+router.post("/documents/verify/:documentVersionId", controller.verifyLifecycleDocument);
+
+// 4. Checklists
+router.post("/instances/:instanceId/checklists/:checklistId/complete", controller.completeLifecycleChecklist);
+
+// 5. Governance Workflow
+router.post("/instances/:instanceId/submit", controller.submitLifecycleForReview);
+router.post("/instances/:instanceId/review", controller.reviewLifecycleStageGate);
+router.get("/instances/:instanceId/stages/:stageId/readiness", controller.getLifecycleReadinessStatus);
+
 /**
  * @swagger
  * /lifecycle/instances/{instanceId}/documents/{stageDocumentId}/upload:

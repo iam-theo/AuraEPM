@@ -91,6 +91,14 @@ export function GoogleMeetStreamView({ projectId }: Props) {
   }, [projectId]);
 
   useEffect(() => {
+    if (teamMembers && teamMembers.length > 0) {
+      setActiveSpeaker(teamMembers[0].name);
+    } else {
+      setActiveSpeaker("Project Host");
+    }
+  }, [teamMembers]);
+
+  useEffect(() => {
     if (activeMeeting) {
       setNotes(activeMeeting.minutes || "");
       loadComments(activeMeeting.id);

@@ -1,5 +1,7 @@
 import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { db } from "../../../shared/database/index.ts";
+import fs from "fs";
+import path from "path";
 import {
   projects,
   lifecycleTemplates,
@@ -29,7 +31,84 @@ import { AuditLogger } from "../../../shared/infrastructure/audit-logger.ts";
 import { eventBus } from "../../../shared/domain/event-bus.ts";
 
 export class LifecycleService {
-  
+
+  async getTemplates(): Promise<any[]> {
+    const templates = await db.select().from(lifecycleTemplates);
+    return templates;
+  }
+
+  async getTemplateById(templateId: string): Promise<any> {
+    const [template] = await db.select().from(lifecycleTemplates).where(eq(lifecycleTemplates.id, templateId)).limit(1);
+    if (!template) throw new NotFoundError("Template");
+    const stages = await db.select().from(lifecycleStages).where(eq(lifecycleStages.templateId, templateId)).orderBy(asc(lifecycleStages.stageNumber));
+    for (let stage of stages) {
+      const checklists = await db.select().from(stageChecklists).where(eq(stageChecklists.stageId, stage.id)).orderBy(asc(stageChecklists.displayOrder));
+      const documents = await db.select().from(stageDocuments).where(eq(stageDocuments.stageId, stage.id));
+      
+      try {
+        (stage as any).approverRoles = stage.approverRoles ? JSON.parse(stage.approverRoles) : [];
+      } catch (e) {
+        (stage as any).approverRoles = [];
+      }
+
+      try {
+        (stage as any).requiredPermissions = stage.requiredPermissions ? JSON.parse(stage.requiredPermissions) : [];
+      } catch (e) {
+        (stage as any).requiredPermissions = [];
+      }
+
+      (stage as any).checklists = checklists;
+      (stage as any).documents = documents;
+    }
+    return { ...template, stages };
+  }
+
+  async updateTemplate(templateId: string, payload: any): Promise<any> {
+    const { name, description, stages } = payload;
+    await db.update(lifecycleTemplates).set({ name, description, updatedAt: new Date() }).where(eq(lifecycleTemplates.id, templateId));
+    
+    // For simplicity, if stages are passed, we just update them. We will handle updates.
+    // However, it's easier to implement this in a transaction or individual endpoints.
+    // I will add a method that updates stage details.
+    if (stages && Array.isArray(stages)) {
+       for (const stage of stages) {
+         if (stage.id) {
+           await db.update(lifecycleStages).set({
+             name: stage.name,
+             description: stage.description,
+             businessObjective: stage.businessObjective,
+             ownerRole: stage.ownerRole,
+             approverRoles: JSON.stringify(stage.approverRoles || []),
+           }).where(eq(lifecycleStages.id, stage.id));
+           
+           // Update checklists
+           if (stage.checklists) {
+              for (const cl of stage.checklists) {
+                if (cl.id && cl.id !== 'new') {
+                  await db.update(stageChecklists).set({ itemText: cl.itemText, isMandatory: cl.isMandatory }).where(eq(stageChecklists.id, cl.id));
+                } else {
+                  await db.insert(stageChecklists).values({ stageId: stage.id, itemText: cl.itemText, isMandatory: cl.isMandatory });
+                }
+              }
+           }
+           
+           // Update documents
+           if (stage.documents) {
+              for (const doc of stage.documents) {
+                if (doc.id && doc.id !== 'new') {
+                   await db.update(stageDocuments).set({ name: doc.name, category: doc.category, isMandatory: doc.isMandatory, description: doc.description }).where(eq(stageDocuments.id, doc.id));
+                } else {
+                   await db.insert(stageDocuments).values({ stageId: stage.id, name: doc.name, category: doc.category, isMandatory: doc.isMandatory, description: doc.description });
+                }
+              }
+           }
+         }
+       }
+    }
+    
+    return this.getTemplateById(templateId);
+  }
+
   // 1. SEED DEFAULT GOVERNANCE LIFECYCLE TEMPLATE
   async seedDefaultTemplate(): Promise<any> {
     const [existing] = await db
@@ -514,10 +593,36 @@ export class LifecycleService {
       .where(and(eq(lifecycleComments.instanceId, instance.id), eq(lifecycleComments.stageId, currentStage.id)))
       .orderBy(desc(lifecycleComments.createdAt));
 
+    const documents = docsConfig.map((doc) => {
+      const file = uploads.find((u) => u.stageDocumentId === doc.id);
+      return {
+        id: doc.id,
+        name: doc.name,
+        category: doc.category,
+        isMandatory: doc.isMandatory,
+        allowedFormats: doc.allowedFormatsJson ? JSON.parse(doc.allowedFormatsJson) : [],
+        maxFileSizeMb: doc.maxFileSizeMb,
+        status: file ? file.status : "PENDING",
+        uploadedFile: file ? {
+          id: file.id,
+          fileName: file.fileName,
+          filePath: file.filePath,
+          version: file.version,
+          status: file.status,
+          uploadedBy: file.uploadedBy,
+          verificationStatus: file.verificationStatus,
+          reviewerNotes: file.reviewerNotes,
+          uploadedAt: file.uploadedAt,
+        } : null,
+      };
+    });
+
     return {
       hasLifecycle: true,
+      id: instance.id,
       instanceId: instance.id,
       projectId: instance.projectId,
+      templateId: instance.templateId,
       status: instance.status,
       startedAt: instance.startedAt,
       completedAt: instance.completedAt,
@@ -526,45 +631,30 @@ export class LifecycleService {
         name: tmpl.name,
         description: tmpl.description,
       },
-      currentStage: {
-        id: currentStage.id,
-        stageNumber: currentStage.stageNumber,
-        name: currentStage.name,
-        description: currentStage.description,
-        businessObjective: currentStage.businessObjective,
-        ownerRole: currentStage.ownerRole,
-        approverRoles: currentStage.approverRoles ? JSON.parse(currentStage.approverRoles) : [],
-        estimatedDurationDays: currentStage.estimatedDurationDays,
-      },
-      allStages: allStages.map((s) => ({
-        id: s.id,
-        stageNumber: s.stageNumber,
-        name: s.name,
-        isCurrent: s.id === instance.currentStageId,
-      })),
-      documents: docsConfig.map((doc) => {
-        const file = uploads.find((u) => u.stageDocumentId === doc.id);
+      currentStageId: instance.currentStageId,
+      stages: allStages.map((s) => {
+        const isCurrent = s.id === instance.currentStageId;
+        // Determine status based on stageNumber relative to currentStage
+        let status = "LOCKED";
+        if (s.stageNumber < currentStage.stageNumber) status = "COMPLETED";
+        else if (s.id === instance.currentStageId) status = instance.status === "IN_REVIEW" ? "IN_REVIEW" : "ACTIVE";
+        
         return {
-          id: doc.id,
-          name: doc.name,
-          category: doc.category,
-          isMandatory: doc.isMandatory,
-          allowedFormats: doc.allowedFormatsJson ? JSON.parse(doc.allowedFormatsJson) : [],
-          maxFileSizeMb: doc.maxFileSizeMb,
-          uploadedFile: file ? {
-            id: file.id,
-            fileName: file.fileName,
-            filePath: file.filePath,
-            version: file.version,
-            status: file.status,
-            uploadedBy: file.uploadedBy,
-            verificationStatus: file.verificationStatus,
-            reviewerNotes: file.reviewerNotes,
-            uploadedAt: file.uploadedAt,
-          } : null,
+          id: s.id,
+          stageNumber: s.stageNumber,
+          name: s.name,
+          status: status,
+          isCurrent,
+          // We only return checklists/docs for current stage in this detail view, 
+          // or we could fetch them all. For now, let's at least provide the arrays.
+          checklists: isCurrent ? checklists : [],
+          documents: isCurrent ? documents : [],
+          roles: isCurrent ? approvals : [],
+          slaConfig: isCurrent ? sla : null,
         };
       }),
       checklists,
+      documents,
       approvals,
       headOfOperationsReview: opsReview || null,
       sla: sla ? {
@@ -578,6 +668,43 @@ export class LifecycleService {
   }
 
   // 4. DOCUMENT UPLOAD WITH REVISION CONTROL & EXPIRY
+  async processUploadedDocument(
+    actorId: string,
+    instanceId: string,
+    stageDocumentId: string,
+    fileData: { fileName: string; tempPath: string; mimeType: string; size: number }
+  ): Promise<any> {
+    const [instance] = await db.select().from(lifecycleInstances).where(eq(lifecycleInstances.id, instanceId)).limit(1);
+    if (!instance) throw new NotFoundError("Lifecycle Instance");
+
+    const [docConfig] = await db.select().from(stageDocuments).where(eq(stageDocuments.id, stageDocumentId)).limit(1);
+    if (!docConfig) throw new NotFoundError("Document Configuration");
+
+    const projectId = instance.projectId;
+    const stageId = instance.currentStageId!;
+
+    // Create final path: uploads/projects/:projectId/stages/:stageId/:filename
+    const targetDir = path.join(process.cwd(), "uploads", "projects", projectId, "stages", stageId);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+
+    const finalFileName = `${Date.now()}-${fileData.fileName}`;
+    const finalPath = path.join(targetDir, finalFileName);
+
+    // Move file from temp to project-specific stage folder
+    fs.renameSync(fileData.tempPath, finalPath);
+
+    // Relative path for client access (will be served as static)
+    const relativePath = `/uploads/projects/${projectId}/stages/${stageId}/${finalFileName}`;
+    
+    return this.uploadDocument(actorId, instanceId, stageDocumentId, {
+      fileName: fileData.fileName,
+      filePath: relativePath,
+      checksum: `SIZE-${fileData.size}`
+    });
+  }
+
   async uploadDocument(
     actorId: string,
     instanceId: string,
@@ -757,7 +884,143 @@ export class LifecycleService {
     return updated;
   }
 
-  // 7. ROLE-BASED APPROVAL SUBMISSION
+  // 7. STAGE GATE SUBMISSION & VALIDATION
+  async validateStageReadiness(instanceId: string, stageId: string): Promise<any> {
+    const [instance] = await db.select().from(lifecycleInstances).where(eq(lifecycleInstances.id, instanceId)).limit(1);
+    if (!instance) throw new NotFoundError("Lifecycle Instance");
+
+    const [stage] = await db.select().from(lifecycleStages).where(eq(lifecycleStages.id, stageId)).limit(1);
+    if (!stage) throw new NotFoundError("Stage");
+
+    // 1. Validate Checklist
+    const checklists = await db.select().from(stageChecklists).where(eq(stageChecklists.stageId, stageId));
+    const responses = await db.select().from(checklistResponses).where(eq(checklistResponses.instanceId, instanceId));
+    
+    const missingChecklist = checklists
+      .filter(c => c.isMandatory)
+      .filter(c => !responses.find(r => r.checklistId === c.id && r.isCompleted));
+
+    // 2. Validate Documents
+    const docsConfig = await db.select().from(stageDocuments).where(eq(stageDocuments.stageId, stageId));
+    const uploads = await db.select().from(documentVersions).where(and(eq(documentVersions.instanceId, instanceId), eq(documentVersions.status, "PENDING")));
+    
+    const missingDocs = docsConfig
+      .filter(d => d.isMandatory)
+      .filter(d => !uploads.find(u => u.stageDocumentId === d.id));
+
+    const isReady = missingChecklist.length === 0 && missingDocs.length === 0;
+
+    return {
+      isReady,
+      missingChecklist: missingChecklist.map(c => c.itemText),
+      missingDocuments: missingDocs.map(d => d.name),
+      summary: isReady ? "Stage is ready for governance review" : "Submission blocked: requirements incomplete"
+    };
+  }
+
+  async submitStageForReview(actorId: string, instanceId: string): Promise<any> {
+    const [instance] = await db.select().from(lifecycleInstances).where(eq(lifecycleInstances.id, instanceId)).limit(1);
+    if (!instance) throw new NotFoundError("Instance");
+    
+    if (instance.status === "AWAITING_REVIEW") {
+      throw new ValidationError("Stage is already awaiting review");
+    }
+
+    const readiness = await this.validateStageReadiness(instanceId, instance.currentStageId!);
+    if (!readiness.isReady) {
+      throw new ValidationError(`Cannot submit stage. Missing items: ${[...readiness.missingChecklist, ...readiness.missingDocuments].join(", ")}`);
+    }
+
+    // Lock the instance
+    const [updated] = await db
+      .update(lifecycleInstances)
+      .set({ 
+        status: "AWAITING_REVIEW",
+        updatedAt: new Date()
+      })
+      .where(eq(lifecycleInstances.id, instanceId))
+      .returning();
+
+    // Create Audit Log
+    await db.insert(lifecycleComments).values({
+      instanceId,
+      stageId: instance.currentStageId!,
+      authorId: actorId,
+      content: "STAGE GATE SUBMISSION: PM has submitted the stage for Head of Operations review.",
+    });
+
+    return updated;
+  }
+
+  // 8. GOVERNANCE REVIEW (APPROVE/REJECT)
+  async reviewStageGate(actorId: string, instanceId: string, decision: "APPROVE" | "REJECT", comments: string): Promise<any> {
+    const [instance] = await db.select().from(lifecycleInstances).where(eq(lifecycleInstances.id, instanceId)).limit(1);
+    if (!instance) throw new NotFoundError("Instance");
+
+    const currentStageId = instance.currentStageId!;
+    const [currentStage] = await db.select().from(lifecycleStages).where(eq(lifecycleStages.id, currentStageId)).limit(1);
+
+    if (decision === "APPROVE") {
+      // Find next stage
+      const [nextStage] = await db
+        .select()
+        .from(lifecycleStages)
+        .where(and(eq(lifecycleStages.templateId, instance.templateId), eq(lifecycleStages.stageNumber, currentStage.stageNumber + 1)))
+        .limit(1);
+
+      const status = nextStage ? "IN_PROGRESS" : "COMPLETED";
+      
+      const [updated] = await db
+        .update(lifecycleInstances)
+        .set({
+          currentStageId: nextStage ? nextStage.id : currentStageId,
+          status: status,
+          completedAt: nextStage ? null : new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(lifecycleInstances.id, instanceId))
+        .returning();
+
+      await db.insert(headOfOperationsReviews).values({
+        instanceId,
+        stageId: currentStageId,
+        reviewerId: actorId,
+        status: "APPROVED",
+        comments: comments || "Stage approved by Head of Operations.",
+        reviewedAt: new Date(),
+      });
+
+      // Update project status if lifecycle completed
+      if (!nextStage) {
+        await db.update(projects).set({ status: "ACTIVE" }).where(eq(projects.id, instance.projectId));
+      }
+
+      return updated;
+    } else {
+      // REJECT / REQUEST CHANGES
+      const [updated] = await db
+        .update(lifecycleInstances)
+        .set({
+          status: "CHANGES_REQUESTED",
+          updatedAt: new Date()
+        })
+        .where(eq(lifecycleInstances.id, instanceId))
+        .returning();
+
+      await db.insert(headOfOperationsReviews).values({
+        instanceId,
+        stageId: currentStageId,
+        reviewerId: actorId,
+        status: "REJECTED",
+        comments: comments || "Changes requested by reviewer.",
+        reviewedAt: new Date(),
+      });
+
+      return updated;
+    }
+  }
+
+  // 9. ROLE-BASED APPROVAL SUBMISSION
   async submitStageApproval(
     actorId: string,
     instanceId: string,

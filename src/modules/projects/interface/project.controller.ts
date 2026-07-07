@@ -17,8 +17,8 @@ export class ProjectController {
 
   create = async (req: any, res: Response) => {
     const userId = req.user?.uid || "system";
-    const project = await this.projectService.createProject(req.body, userId);
-    return ResponseFormatter.success(res, { id: project.id, ...project.props }, "Project created successfully", StatusCode.CREATED);
+    const result = await this.projectService.createProject(req.body, userId);
+    return ResponseFormatter.success(res, { project: { id: result.project.id, ...result.project.props }, lifecycle: result.lifecycle }, "Project created successfully", StatusCode.CREATED);
   };
 
   update = async (req: any, res: Response) => {

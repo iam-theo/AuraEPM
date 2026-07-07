@@ -23,5 +23,5 @@ trackerRouter.use("/chat", chatRoutes);
 trackerRouter.use("/gemini-agent", geminiAgentRoutes);
 
 export default trackerRouter;
-export { dbState, loadDatabase, saveDatabase } from "./db.ts";
+export { dbState, loadDatabase, saveDatabase, syncStateFromPostgres } from "./db.ts";
 export * from "./types.ts";

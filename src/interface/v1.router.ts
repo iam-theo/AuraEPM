@@ -10,6 +10,7 @@ import enterpriseRouter from "../modules/enterprise/interface/enterprise.router.
 import lifecycleRouter from "../modules/enterprise/interface/lifecycle.router.ts";
 import orchestrationRouter from "../modules/orchestration/interface/orchestration.router.ts";
 import devPortalRouter from "../modules/orchestration/interface/developer-portal.router.ts";
+import { dashboardRouter } from "../modules/dashboards/interface/dashboard.router.ts";
 
 const v1Router = Router();
 
@@ -24,5 +25,6 @@ v1Router.use("/enterprise", enterpriseRouter);
 v1Router.use("/lifecycle", lifecycleRouter);
 v1Router.use("/orchestration", orchestrationRouter);
 v1Router.use("/devportal", devPortalRouter);
+v1Router.use("/dashboards", dashboardRouter);
 
 export default v1Router;

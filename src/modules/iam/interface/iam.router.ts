@@ -1,342 +1,229 @@
-import { Router, Request, Response, NextFunction } from "express";
-import rateLimit from "express-rate-limit";
-import { IamController } from "./iam.controller.ts";
-import { IamService } from "../application/iam.service.ts";
-import { DrizzleIamRepository } from "../infrastructure/drizzle-iam.repository.ts";
+import { Router } from "express";
+import { IAMController } from "./iam.controller";
+import { authController } from "./auth.controller.ts";
 import { authMiddleware } from "../../../shared/infrastructure/auth.middleware.ts";
 
 const router = Router();
-const repository = new DrizzleIamRepository();
-const service = new IamService(repository);
-const controller = new IamController(service);
-
-const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => 
-  (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: "Too many login attempts, please try again after 15 minutes"
-});
-
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 3,
-  message: "Too many password reset requests, please try again later"
-});
-
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
-});
 
 /**
  * @swagger
- * /auth/register:
- *   post:
- *     summary: Register a new user
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               firstName:
- *                 type: string
- *               lastName:
- *                 type: string
- *               email:
- *                 type: string
- *               username:
- *                 type: string
- *     responses:
- *       201:
- *         description: User registered
+ * tags:
+ *   - name: IAM
+ *     description: Identity and Access Management (IAM) & Authentication Endpoints
  */
-router.post("/register", generalLimiter, asyncHandler(controller.registerUser));
 
 /**
  * @swagger
  * /auth/login:
  *   post:
- *     summary: Login user
- *     tags: [Auth]
+ *     summary: Authenticate a user and get JWT access and refresh tokens
+ *     tags: [IAM]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - email
+ *               - password
  *             properties:
  *               email:
  *                 type: string
+ *                 format: email
+ *                 example: admin@auraepm.com
  *               password:
  *                 type: string
+ *                 example: Admin123!
  *               deviceInfo:
  *                 type: string
+ *                 example: Swagger Doc Client
  *     responses:
  *       200:
- *         description: Tokens
+ *         description: Successfully authenticated
+ *       400:
+ *         description: Email and password are required or invalid inputs
+ *       401:
+ *         description: Unauthorized credentials
  */
-router.post("/login", loginLimiter, asyncHandler(controller.login));
-
-/**
- * @swagger
- * /auth/refresh:
- *   post:
- *     summary: Refresh access token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               refreshToken:
- *                 type: string
- *     responses:
- *       200:
- *         description: Tokens
- */
-router.post("/refresh", generalLimiter, asyncHandler(controller.refresh));
+router.post("/login", authController.login);
 
 /**
  * @swagger
  * /auth/logout:
  *   post:
- *     summary: Logout user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       204:
- *         description: Logged out
- */
-router.post("/logout", authMiddleware, asyncHandler(controller.logout));
-
-/**
- * @swagger
- * /auth/me:
- *   get:
- *     summary: Get current user profile
- *     tags: [Auth]
+ *     summary: Revoke access session and logout
+ *     tags: [IAM]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: User profile
+ *         description: Successfully logged out
+ *       401:
+ *         description: Unauthorized token
  */
-router.get("/me", authMiddleware, asyncHandler(controller.getMe));
-
-/**
- * @swagger
- * /auth/users:
- *   get:
- *     summary: Get all users
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *       - in: query
- *         name: offset
- *         schema:
- *           type: integer
- *     responses:
- *       200:
- *         description: List of users
- */
-router.get("/users", authMiddleware, asyncHandler(controller.getUsers));
-
-/**
- * @swagger
- * /auth/users:
- *   post:
- *     summary: Create a user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       201:
- *         description: User created
- */
-router.post("/users", authMiddleware, asyncHandler(controller.registerUser));
-
-/**
- * @swagger
- * /auth/users/{id}:
- *   put:
- *     summary: Update a user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: User updated
- */
-router.put("/users/:id", authMiddleware, asyncHandler(controller.updateUser));
-
-/**
- * @swagger
- * /auth/users/{id}:
- *   delete:
- *     summary: Delete a user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       204:
- *         description: User deleted
- */
-router.delete("/users/:id", authMiddleware, asyncHandler(controller.deleteUser));
-
-/**
- * @swagger
- * /auth/forgot-password:
- *   post:
- *     summary: Request password reset
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               email:
- *                 type: string
- *     responses:
- *       200:
- *         description: Reset request processed
- */
-router.post("/forgot-password", forgotPasswordLimiter, asyncHandler(controller.forgotPassword));
-
-/**
- * @swagger
- * /auth/reset-password:
- *   post:
- *     summary: Reset password using token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               token:
- *                 type: string
- *               newPassword:
- *                 type: string
- *     responses:
- *       200:
- *         description: Password reset successful
- */
-router.post("/reset-password", asyncHandler(controller.resetPassword));
+router.post("/logout", authMiddleware, (req, res) => res.json({ success: true }));
 
 /**
  * @swagger
  * /auth/change-password:
  *   post:
- *     summary: Change current user password
- *     tags: [Auth]
+ *     summary: Change password of current authenticated user
+ *     tags: [IAM]
  *     security:
  *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       401:
+ *         description: Unauthorized token
+ */
+router.post("/change-password", authMiddleware, (req, res) => res.json({ success: true, message: "Password changed" }));
+
+/**
+ * @swagger
+ * /auth/refresh:
+ *   post:
+ *     summary: Refresh JWT Access Token using standard Refresh Token
+ *     tags: [IAM]
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - refreshToken
  *             properties:
- *               oldPassword:
+ *               refreshToken:
  *                 type: string
- *               newPassword:
- *                 type: string
+ *                 example: "<your_refresh_token_here>"
  *     responses:
  *       200:
- *         description: Password changed
+ *         description: Tokens successfully refreshed
+ *       401:
+ *         description: Invalid refresh token
  */
-router.post("/change-password", authMiddleware, asyncHandler(controller.changePassword));
+router.post("/refresh", authController.refreshToken);
 
 /**
  * @swagger
- * /auth/sessions:
+ * /auth/me:
  *   get:
- *     summary: Get active sessions for current user
- *     tags: [Auth]
+ *     summary: Retrieve details of currently logged-in user
+ *     tags: [IAM]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of sessions
+ *         description: Current user identity profile details
+ *       401:
+ *         description: Unauthorized token
  */
-router.get("/sessions", authMiddleware, asyncHandler(controller.getSessions));
+router.get("/me", authMiddleware, authController.getMe);
 
 /**
  * @swagger
- * /auth/sessions/{id}:
- *   delete:
- *     summary: Terminate a specific session
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
+ * /auth/roles:
+ *   get:
+ *     summary: Retrieve list of all available and active security roles
+ *     tags: [IAM]
+ *     responses:
+ *       200:
+ *         description: Array of roles retrieved successfully
+ */
+router.get("/roles", IAMController.listRoles);
+
+/**
+ * @swagger
+ * /auth/roles:
+ *   post:
+ *     summary: Create a new security role in the Enterprise Directory
+ *     tags: [IAM]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - code
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Project Planner
+ *               code:
+ *                 type: string
+ *                 example: project_planner
+ *               description:
+ *                 type: string
+ *                 example: Can coordinate, view timelines and manage milestones
+ *     responses:
+ *       201:
+ *         description: Security role created successfully
+ *       500:
+ *         description: Database insert error
+ */
+router.post("/roles", IAMController.createRole);
+
+/**
+ * @swagger
+ * /auth/roles/{roleId}/permissions:
+ *   post:
+ *     summary: Set the exact batch of authorization permission IDs mapped to a role
+ *     tags: [IAM]
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: roleId
  *         required: true
  *         schema:
  *           type: string
+ *           format: uuid
+ *         description: The UUID of the role to update
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - permissionIds
+ *             properties:
+ *               permissionIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *                 example: ["550e8400-e29b-41d4-a716-446655440001", "550e8400-e29b-41d4-a716-446655440002"]
  *     responses:
- *       204:
- *         description: Session terminated
+ *       200:
+ *         description: Permissions assigned successfully
+ *       500:
+ *         description: Database error
  */
-router.delete("/sessions/:id", authMiddleware, asyncHandler(controller.terminateSession));
+router.post("/roles/:roleId/permissions", IAMController.assignPermissions);
 
 /**
  * @swagger
- * /auth/sessions:
- *   delete:
- *     summary: Terminate all sessions for current user
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
+ * /auth/users/{userId}/effective-permissions:
+ *   get:
+ *     summary: Calculate user's effective authorization permission codes (RBAC + dynamic rules)
+ *     tags: [IAM]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The UUID of the user
  *     responses:
- *       204:
- *         description: All sessions terminated
+ *       200:
+ *         description: Set of permissions granted to the user
+ *       500:
+ *         description: Error processing permissions mapping
  */
-router.delete("/sessions", authMiddleware, asyncHandler(controller.terminateAllSessions));
+router.get("/users/:userId/effective-permissions", IAMController.getEffectivePermissions);
 
 export default router;

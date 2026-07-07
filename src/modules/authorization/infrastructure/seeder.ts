@@ -84,12 +84,25 @@ export async function seedAuthorization() {
           continue;
         }
 
+        // Derive missing metadata from dot notation and groups
+        const nameParts = permDef.name.split(".");
+        const feature = nameParts[0] || "general";
+        const action = nameParts[1] || "view";
+        
+        // Find group to get module (categoryCode)
+        const groupDef = GROUPS.find(g => g.code === permDef.groupCode);
+        const module = groupDef?.categoryCode || "core";
+
         if (!existingPermissionNames.has(permDef.name)) {
           const [inserted] = await tx.insert(permissions).values({
             groupId,
             name: permDef.name,
             label: permDef.label,
             description: permDef.description,
+            module,
+            feature,
+            action,
+            permissionKey: permDef.name,
             isSystem: permDef.isSystem ?? false,
             createdAt: new Date(),
             updatedAt: new Date()
@@ -114,6 +127,7 @@ export async function seedAuthorization() {
             code: roleDef.code,
             description: roleDef.description,
             isSystem: roleDef.isSystem ?? false,
+            isSuperAdmin: roleDef.code === "super_admin",
             createdAt: new Date(),
             updatedAt: new Date()
           }).returning();
@@ -121,6 +135,10 @@ export async function seedAuthorization() {
           logger.info(`Seeded Role: ${roleDef.name}`);
         } else {
           const role = existingRoles.find((r) => r.code === roleDef.code)!;
+          if (role.code === "super_admin" && !role.isSuperAdmin) {
+            await tx.update(roles).set({ isSuperAdmin: true }).where(eq(roles.id, role.id));
+            role.isSuperAdmin = true;
+          }
           roleMap[roleDef.code] = role.id;
         }
       }

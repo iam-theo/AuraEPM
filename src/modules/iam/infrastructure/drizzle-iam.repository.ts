@@ -1,6 +1,6 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "../../../shared/database/index.ts";
-import { users, passwords, refreshTokens, deviceSessions, loginHistory, securityAuditLogs } from "../../../db/schema.ts";
+import { users, passwords, refreshTokens, deviceSessions, loginHistory, securityAuditLogs, passwordHistory, passwordResetTokens } from "../../../db/schema.ts";
 
 export class DrizzleIamRepository {
   async createUser(userData: any, passwordHash: string) {

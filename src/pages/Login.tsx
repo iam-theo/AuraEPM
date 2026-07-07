@@ -30,7 +30,15 @@ export const Login = () => {
       localStorage.setItem('accessToken', accessToken);
       const userRes = await api.get('/auth/me');
       
-      login({ accessToken, refreshToken, user: userRes.data.data });
+      let securityProfile = null;
+      try {
+        const profileRes = await api.get('/auth/users/me/profile');
+        securityProfile = profileRes.data.data;
+      } catch (profileErr) {
+        console.error('Failed to load security profile on login', profileErr);
+      }
+      
+      login({ accessToken, refreshToken, user: userRes.data.data, securityProfile });
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid credentials');

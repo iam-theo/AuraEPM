@@ -1,5 +1,8 @@
 import { dbState, generateUUID, saveDatabase } from "../../db.ts";
 import { Deliverable, Document, Comment } from "../../types.ts";
+import { db } from "../../../../shared/database/index.ts";
+import { eq } from "drizzle-orm";
+import { deliverables as pgDeliverablesTable } from "../../../../db/schema.ts";
 
 export class DeliverablesDocsRepository {
   // ==========================================
@@ -14,19 +17,33 @@ export class DeliverablesDocsRepository {
   }
 
   async createDeliverable(data: Partial<Deliverable>): Promise<Deliverable> {
-    const newDel: Deliverable = {
-      id: generateUUID(),
+    const id = generateUUID();
+    const attachments = data.attachments || [];
+    const fileUrl = attachments.length > 0 ? attachments[0] : null;
+
+    const [inserted] = await db.insert(pgDeliverablesTable).values({
+      id,
       projectId: data.projectId!,
-      title: data.title!,
+      name: data.title!,
+      status: (data.status || "DRAFT") as any,
+      dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      fileUrl,
+      version: "1.0.0"
+    }).returning();
+
+    const newDel: Deliverable = {
+      id: inserted.id,
+      projectId: inserted.projectId,
+      title: inserted.name,
       description: data.description || "",
-      dueDate: data.dueDate!,
-      status: "DRAFT" as any,
-      ownerId: data.ownerId!,
+      dueDate: inserted.dueDate ? inserted.dueDate.toISOString().split("T")[0] : "",
+      status: (inserted.status === "APPROVED" ? "APPROVED" : inserted.status === "REJECTED" ? "REJECTED" : inserted.status === "IN_REVIEW" ? "IN_REVIEW" : "DRAFT") as any,
+      ownerId: data.ownerId || "usr-alex",
       reviewers: data.reviewers || [],
-      acceptanceCriteria: data.acceptanceCriteria!,
-      attachments: data.attachments || [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      acceptanceCriteria: data.acceptanceCriteria || "",
+      attachments: inserted.fileUrl ? [inserted.fileUrl] : [],
+      createdAt: inserted.createdAt.toISOString(),
+      updatedAt: inserted.updatedAt.toISOString(),
       deletedAt: null
     };
 
@@ -39,10 +56,25 @@ export class DeliverablesDocsRepository {
     const index = dbState.deliverables.findIndex(d => d.id === id && !d.deletedAt);
     if (index === -1) return null;
 
+    const current = dbState.deliverables[index];
+    const attachments = data.attachments || current.attachments;
+    const fileUrl = attachments.length > 0 ? attachments[0] : null;
+
+    const [updated] = await db.update(pgDeliverablesTable)
+      .set({
+        name: data.title,
+        status: data.status as any,
+        dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+        fileUrl,
+        updatedAt: new Date()
+      })
+      .where(eq(pgDeliverablesTable.id, id))
+      .returning();
+
     dbState.deliverables[index] = {
-      ...dbState.deliverables[index],
+      ...current,
       ...data,
-      updatedAt: new Date().toISOString()
+      updatedAt: updated ? updated.updatedAt.toISOString() : new Date().toISOString()
     };
 
     saveDatabase();
@@ -52,6 +84,12 @@ export class DeliverablesDocsRepository {
   async deleteDeliverable(id: string): Promise<boolean> {
     const index = dbState.deliverables.findIndex(d => d.id === id && !d.deletedAt);
     if (index === -1) return false;
+
+    await db.update(pgDeliverablesTable)
+      .set({
+        deletedAt: new Date()
+      })
+      .where(eq(pgDeliverablesTable.id, id));
 
     dbState.deliverables[index].deletedAt = new Date().toISOString();
     saveDatabase();

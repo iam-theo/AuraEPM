@@ -92,6 +92,7 @@ export interface Project {
 export interface TeamMember {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   userId: string; // Simulated existing platform user ID
   name: string;
   email: string;
@@ -108,6 +109,7 @@ export interface TeamMember {
 export interface Task {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   title: string;
   description: string;
   status: TaskStatus;
@@ -139,6 +141,7 @@ export interface Subtask {
 export interface Milestone {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   title: string;
   description: string;
   targetDate: string;
@@ -153,6 +156,7 @@ export interface Milestone {
 export interface Dependency {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   type: DependencyType;
   predecessorId: string; // Task UUID or Milestone UUID
   successorId: string; // Task UUID or Milestone UUID
@@ -165,6 +169,7 @@ export interface Dependency {
 export interface TimeLog {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   taskId: string | null; // FK to Task
   teamMemberId: string; // FK to TeamMember
   hours: number;
@@ -179,6 +184,7 @@ export interface TimeLog {
 export interface Issue {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   title: string;
   description: string;
   severity: IssueSeverity;
@@ -196,6 +202,7 @@ export interface Issue {
 export interface Risk {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   title: string;
   description: string;
   probability: RiskProbability;
@@ -212,6 +219,7 @@ export interface Risk {
 export interface Deliverable {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   title: string;
   description: string;
   dueDate: string;
@@ -228,6 +236,7 @@ export interface Deliverable {
 export interface Document {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   name: string;
   folderPath: string; // e.g., "/Design", "/Requirements"
   version: number;
@@ -245,6 +254,7 @@ export interface Document {
 export interface Comment {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   entityType: "TASK" | "ISSUE" | "RISK" | "DELIVERABLE" | "MEETING";
   entityId: string; // UUID of target entity
   parentId: string | null; // FK to Comment (for threading)
@@ -259,6 +269,7 @@ export interface Comment {
 export interface Meeting {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   title: string;
   description: string;
   scheduledAt: string; // ISO datetime
@@ -276,6 +287,7 @@ export interface Meeting {
 export interface AuditLog {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   userId: string; // Simulated platform user ID
   userName: string;
   action: string; // CREATE, UPDATE, DELETE, ASSIGN, etc.
@@ -288,6 +300,7 @@ export interface AuditLog {
 export interface Notification {
   id: string; // UUID
   projectId: string; // FK to Project
+  lifecycleStageId?: string; // FK to lifecycleStages.id
   userId: string; // Simulated platform user ID
   title: string;
   message: string;

@@ -4,6 +4,8 @@ import { api } from "../lib/api.ts";
 
 // Import Modular Feature Components
 import { DashboardView } from "../components/DashboardView.tsx";
+import { LifecycleView } from "../components/LifecycleView.tsx";
+import { LifecycleTemplateBuilderView } from "../components/LifecycleTemplateBuilderView.tsx";
 import { TeamView } from "../components/TeamView.tsx";
 import { TasksView } from "../components/TasksView.tsx";
 import { GanttView } from "../components/GanttView.tsx";
@@ -19,6 +21,7 @@ import { SettingsView } from "../components/SettingsView.tsx";
 import { AuditReportsView } from "../components/AuditReportsView.tsx";
 import { AICopilot } from "../components/AICopilot.tsx";
 import { OrchestrationView } from "../components/OrchestrationView.tsx";
+import { AdminConsole } from "../components/AdminConsole.tsx";
 
 // Lucide Icons
 import {
@@ -44,6 +47,8 @@ import {
 
 type Tab =
   | "dashboard"
+  | "lifecycle"
+  | "templateBuilder"
   | "orchestration"
   | "team"
   | "tasks"
@@ -57,16 +62,17 @@ type Tab =
   | "meetings"
   | "chat"
   | "reports"
+  | "admin"
   | "settings";
 
 export default function DashboardLayout() {
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
-  const [activeTab, setActiveTab] = useState<Tab>("dashboard");
+  const [activeTab, setActiveTab] = useState<Tab>("lifecycle");
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission, securityProfile } = useAuth();
   
   // Notification bell counter
   const [unreadCount, setUnreadCount] = useState<number>(3);
@@ -116,6 +122,10 @@ export default function DashboardLayout() {
       switch (activeTab) {
         case "dashboard":
           return <DashboardView projectId={selectedProjectId} />;
+        case "lifecycle":
+          return <LifecycleView projectId={selectedProjectId} />;
+        case "templateBuilder":
+          return <LifecycleTemplateBuilderView />;
         case "orchestration":
           return <OrchestrationView projectId={selectedProjectId} />;
         case "team":
@@ -142,6 +152,8 @@ export default function DashboardLayout() {
           return <ChatView projectId={selectedProjectId} />;
         case "reports":
           return <AuditReportsView projectId={selectedProjectId} />;
+        case "admin":
+          return <AdminConsole />;
         case "settings":
           return <SettingsView />;
         default:
@@ -152,21 +164,24 @@ export default function DashboardLayout() {
     return <div key={refreshKey} className="h-full">{renderViewContent()}</div>;
   };
 
-  const sidebarTabs: { id: Tab; label: string; icon: React.ComponentType<any> }[] = [
+  const sidebarTabs: { id: Tab; label: string; icon: React.ComponentType<any>; permission?: string }[] = [
     { id: "dashboard", label: "Overview Dashboard", icon: LayoutDashboard },
-    { id: "orchestration", label: "EPOL Orchestration Center", icon: Layers },
-    { id: "team", label: "Resource Assignment", icon: Users },
-    { id: "tasks", label: "Work Packages (Tasks)", icon: CheckSquare },
-    { id: "gantt", label: "Gantt Timeline Schedule", icon: Compass },
-    { id: "calendar", label: "Release Calendar", icon: Calendar },
-    { id: "google-calendar", label: "Realtime Google Calendar", icon: Globe },
-    { id: "time", label: "Time Tracking Logs", icon: Clock },
-    { id: "issues", label: "Defects & Risk Matrix", icon: AlertTriangle },
-    { id: "docs", label: "Documents & Deliverables", icon: FileText },
-    { id: "meetings", label: "Briefings & Comments", icon: Video },
-    { id: "chat", label: "Live Project Chat", icon: MessageSquare },
-    { id: "meet-stream", label: "In-App Meet Room", icon: Radio },
-    { id: "reports", label: "Audit & Executive Reports", icon: History },
+    { id: "lifecycle", label: "Lifecycle Engine", icon: Shield },
+    { id: "templateBuilder", label: "Template Builder", icon: SettingsIcon },
+    { id: "orchestration", label: "EPOL Orchestration Center", icon: Layers, permission: "admin.system_config" },
+    { id: "team", label: "Resource Assignment", icon: Users, permission: "projects.manage_team" },
+    { id: "tasks", label: "Work Packages (Tasks)", icon: CheckSquare, permission: "tasks.view" },
+    { id: "gantt", label: "Gantt Timeline Schedule", icon: Compass, permission: "milestones.view" },
+    { id: "calendar", label: "Release Calendar", icon: Calendar, permission: "milestones.view" },
+    { id: "google-calendar", label: "Realtime Google Calendar", icon: Globe, permission: "meetings.view" },
+    { id: "time", label: "Time Tracking Logs", icon: Clock, permission: "time.view" },
+    { id: "issues", label: "Defects & Risk Matrix", icon: AlertTriangle, permission: "issues.view" },
+    { id: "docs", label: "Documents & Deliverables", icon: FileText, permission: "documents.view" },
+    { id: "meetings", label: "Briefings & Comments", icon: Video, permission: "meetings.view" },
+    { id: "chat", label: "Live Project Chat", icon: MessageSquare, permission: "comments.view" },
+    { id: "meet-stream", label: "In-App Meet Room", icon: Radio, permission: "meetings.view" },
+    { id: "reports", label: "Audit & Executive Reports", icon: History, permission: "reports.view" },
+    { id: "admin", label: "Enterprise Administration", icon: Shield, permission: "admin.roles" },
     { id: "settings", label: "System & Profile", icon: SettingsIcon }
   ];
 
@@ -212,10 +227,10 @@ export default function DashboardLayout() {
           {/* User Profile */}
           <div className="flex items-center space-x-3 text-xs bg-[#18181b] border border-zinc-800 rounded-lg p-1.5 pr-3">
             <div className="h-6 w-6 rounded-md bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
-              {user?.firstName?.[0] || 'U'}
+              {(user?.firstName || (user as any)?.name)?.[0] || 'U'}
             </div>
             <div className="flex flex-col">
-              <span className="text-zinc-200 font-semibold">{user?.firstName} {user?.lastName}</span>
+              <span className="text-zinc-200 font-semibold">{user?.firstName || (user as any)?.name} {user?.lastName || ''}</span>
               <span className="text-[9px] text-zinc-500">{user?.department || 'Enterprise User'}</span>
             </div>
             <button 
@@ -255,7 +270,7 @@ export default function DashboardLayout() {
 
           {/* Tab Button list */}
           <nav className="flex-1 p-3 space-y-1.5 overflow-y-auto">
-            {sidebarTabs.map((tab) => {
+            {sidebarTabs.filter(tab => !tab.permission || !securityProfile || hasPermission(tab.permission)).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
 

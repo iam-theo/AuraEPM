@@ -1,5 +1,17 @@
 import fs from "fs";
 import path from "path";
+import { db } from "../../shared/database/index.ts";
+import {
+  projects as pgProjectsTable,
+  tasks as pgTasksTable,
+  resources as pgResourcesTable,
+  resourceAllocations as pgResourceAllocationsTable,
+  risksAndIssues as pgRisksAndIssuesTable,
+  deliverables as pgDeliverablesTable,
+  auditLogs as pgAuditLogsTable,
+  notifications as pgNotificationsTable,
+  chatMessages as pgChatMessagesTable
+} from "../../db/schema.ts";
 import {
   Project,
   TeamMember,
@@ -796,23 +808,205 @@ function seedDatabase(): DatabaseState {
   ];
 
   return {
-    projects,
-    teamMembers,
-    tasks,
-    subtasks,
-    milestones,
-    dependencies,
-    timeLogs,
-    issues,
-    risks,
-    deliverables,
-    documents,
-    comments,
-    meetings,
-    auditLogs,
-    notifications,
+    projects: [],
+    teamMembers: [],
+    tasks: [],
+    subtasks: [],
+    milestones: [],
+    dependencies: [],
+    timeLogs: [],
+    issues: [],
+    risks: [],
+    deliverables: [],
+    documents: [],
+    comments: [],
+    meetings: [],
+    auditLogs: [],
+    notifications: [],
     chatMessages: []
   };
+}
+
+export async function syncStateFromPostgres() {
+  try {
+    const pgProjects = await db.select().from(pgProjectsTable);
+    const pgTasks = await db.select().from(pgTasksTable);
+    const pgResources = await db.select().from(pgResourcesTable);
+    const pgAllocations = await db.select().from(pgResourceAllocationsTable);
+    const pgRisksAndIssues = await db.select().from(pgRisksAndIssuesTable);
+    const pgDeliverables = await db.select().from(pgDeliverablesTable);
+    const pgAuditLogs = await db.select().from(pgAuditLogsTable);
+    const pgNotifications = await db.select().from(pgNotificationsTable);
+    const pgChatMessages = await db.select().from(pgChatMessagesTable);
+
+    // Map projects
+    dbState.projects = pgProjects.map(p => {
+      const pTasks = pgTasks.filter(t => t.projectId === p.id);
+      const doneTasks = pTasks.filter(t => t.status === "ARCHIVED" || t.status === "REVIEW");
+      const progress = pTasks.length > 0 ? Math.round((doneTasks.length / pTasks.length) * 100) : 0;
+      
+      return {
+        id: p.id,
+        name: p.name,
+        code: p.name.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, "-"),
+        description: p.description || "",
+        status: p.status as any,
+        health: p.health as any,
+        startDate: p.startDate ? p.startDate.toISOString().split("T")[0] : "",
+        endDate: p.endDate ? p.endDate.toISOString().split("T")[0] : "",
+        budget: p.budget ? parseFloat(p.budget) : 0,
+        progress,
+        createdAt: p.createdAt ? p.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: p.updatedAt ? p.updatedAt.toISOString() : new Date().toISOString(),
+        deletedAt: p.deletedAt ? p.deletedAt.toISOString() : null
+      };
+    });
+
+    // Map tasks
+    dbState.tasks = pgTasks.map(t => {
+      let mappedStatus = TaskStatus.TODO;
+      if (t.status === "REVIEW") {
+        mappedStatus = TaskStatus.IN_REVIEW;
+      } else if (t.status === "IN_PROGRESS" || t.status === "BLOCKED") {
+        mappedStatus = TaskStatus.IN_PROGRESS;
+      } else if (t.status === "ARCHIVED") {
+        mappedStatus = TaskStatus.DONE;
+      }
+      return {
+        id: t.id,
+        projectId: t.projectId,
+        title: t.title,
+        description: t.description || "",
+        status: mappedStatus,
+        priority: t.priority as any,
+        startDate: t.createdAt ? t.createdAt.toISOString().split("T")[0] : "",
+        dueDate: t.dueDate ? t.dueDate.toISOString().split("T")[0] : "",
+        assigneeId: t.assigneeId || null,
+        milestoneId: t.parentId || null,
+        labels: [],
+        estimatedHours: t.estimatedHours ? parseFloat(t.estimatedHours) : 0,
+        actualHours: t.actualHours ? parseFloat(t.actualHours) : 0,
+        completedAt: t.status === "ARCHIVED" ? (t.updatedAt ? t.updatedAt.toISOString() : new Date().toISOString()) : null,
+        createdAt: t.createdAt ? t.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: t.updatedAt ? t.updatedAt.toISOString() : new Date().toISOString(),
+        deletedAt: t.deletedAt ? t.deletedAt.toISOString() : null
+      };
+    });
+
+    // Map teamMembers
+    dbState.teamMembers = pgAllocations.map(alloc => {
+      const resource = pgResources.find(r => r.id === alloc.resourceId);
+      return {
+        id: alloc.id,
+        projectId: alloc.projectId,
+        userId: resource ? resource.id : alloc.resourceId,
+        name: resource ? resource.name : "Allocated Resource",
+        email: resource ? `${resource.name.toLowerCase().replace(/\s+/g, ".")}@enterprise.com` : "resource@enterprise.com",
+        role: resource ? resource.department || "Team Member" : "Team Member",
+        capacity: 40,
+        allocation: alloc.allocationPercentage,
+        availability: "AVAILABLE" as any,
+        createdAt: alloc.createdAt ? alloc.createdAt.toISOString() : new Date().toISOString(),
+        updatedAt: alloc.createdAt ? alloc.createdAt.toISOString() : new Date().toISOString(),
+        deletedAt: null
+      };
+    });
+
+    // Map issues and risks
+    dbState.issues = pgRisksAndIssues.filter(r => r.type === "ISSUE").map(r => ({
+      id: r.id,
+      projectId: r.projectId,
+      title: r.title,
+      description: r.description || "",
+      severity: (r.priority === "URGENT" || r.priority === "HIGH" ? "HIGH" : r.priority === "LOW" ? "LOW" : "MEDIUM") as any,
+      priority: (r.priority === "URGENT" ? "URGENT" : r.priority === "HIGH" ? "HIGH" : r.priority === "LOW" ? "LOW" : "MEDIUM") as any,
+      status: (r.status === "CLOSED" ? "CLOSED" : r.status === "RESOLVED" ? "RESOLVED" : "OPEN") as any,
+      reporterId: r.ownerId || "usr-alex",
+      assigneeId: null,
+      rootCause: null,
+      resolution: null,
+      createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString(),
+      deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null
+    }));
+
+    dbState.risks = pgRisksAndIssues.filter(r => r.type === "RISK").map(r => ({
+      id: r.id,
+      projectId: r.projectId,
+      title: r.title,
+      description: r.description || "",
+      status: (r.status === "CLOSED" ? "CLOSED" : r.status === "MITIGATED" ? "MITIGATED" : "IDENTIFIED") as any,
+      impact: (r.impact || "MEDIUM") as any,
+      probability: (r.probability === 1 ? "LOW" : r.probability === 3 ? "HIGH" : "MEDIUM") as any,
+      mitigationStrategy: r.mitigationPlan || "",
+      escalationPlan: "",
+      ownerId: r.ownerId || "usr-alex",
+      createdAt: r.createdAt ? r.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: r.updatedAt ? r.updatedAt.toISOString() : new Date().toISOString(),
+      deletedAt: r.deletedAt ? r.deletedAt.toISOString() : null
+    }));
+
+    // Map deliverables
+    dbState.deliverables = pgDeliverables.map(d => ({
+      id: d.id,
+      projectId: d.projectId,
+      title: d.name,
+      description: "",
+      dueDate: d.dueDate ? d.dueDate.toISOString().split("T")[0] : "",
+      status: (d.status === "APPROVED" ? "APPROVED" : d.status === "REJECTED" ? "REJECTED" : d.status === "IN_REVIEW" ? "IN_REVIEW" : "DRAFT") as any,
+      ownerId: "usr-alex",
+      reviewers: [],
+      acceptanceCriteria: "",
+      attachments: d.fileUrl ? [d.fileUrl] : [],
+      createdAt: d.createdAt ? d.createdAt.toISOString() : new Date().toISOString(),
+      updatedAt: d.updatedAt ? d.updatedAt.toISOString() : new Date().toISOString(),
+      deletedAt: null
+    }));
+
+    // Map auditLogs
+    dbState.auditLogs = pgAuditLogs.map(l => ({
+      id: l.id,
+      projectId: l.projectId || "",
+      userId: l.userId,
+      userName: "System User",
+      action: l.action,
+      entityType: l.entityType,
+      entityId: l.entityId,
+      details: l.details || "",
+      timestamp: l.createdAt ? l.createdAt.toISOString() : new Date().toISOString()
+    }));
+
+    // Map notifications
+    dbState.notifications = pgNotifications.map(n => {
+      let mappedType: "TASK_ASSIGNED" | "COMMENT_MENTION" | "RISK_ESCALATED" | "DELIVERABLE_REVIEW" | "MEETING_SCHEDULED" | "SYSTEM" | "CHAT_MESSAGE" = "SYSTEM";
+      if (n.type === "TASK_ASSIGNED" || n.type === "COMMENT_MENTION" || n.type === "RISK_ESCALATED" || n.type === "DELIVERABLE_REVIEW" || n.type === "MEETING_SCHEDULED" || n.type === "SYSTEM" || n.type === "CHAT_MESSAGE") {
+        mappedType = n.type as any;
+      }
+      return {
+        id: n.id,
+        userId: n.userId,
+        projectId: "",
+        title: n.title,
+        message: n.message,
+        isRead: n.isRead,
+        type: mappedType,
+        createdAt: n.createdAt ? n.createdAt.toISOString() : new Date().toISOString()
+      };
+    });
+
+    // Map chatMessages
+    dbState.chatMessages = pgChatMessages.map(m => ({
+      id: m.id,
+      projectId: m.projectId,
+      authorId: m.authorId,
+      authorName: m.authorName,
+      content: m.content,
+      createdAt: m.createdAt ? m.createdAt.toISOString() : new Date().toISOString()
+    }));
+
+  } catch (err) {
+    console.error("Failed to sync project-tracker state with PostgreSQL:", err);
+  }
 }
 
 export function loadDatabase(): DatabaseState {
@@ -820,17 +1014,18 @@ export function loadDatabase(): DatabaseState {
     if (fs.existsSync(DB_FILE_PATH)) {
       const data = fs.readFileSync(DB_FILE_PATH, "utf-8");
       dbState = JSON.parse(data);
-      // Verify that loaded structure contains all required arrays
-      const defaults = seedDatabase();
-      dbState = { ...defaults, ...dbState };
-      return dbState;
     }
   } catch (error) {
     console.error("Failed to load project database, seeding instead...", error);
   }
   
-  dbState = seedDatabase();
-  saveDatabase();
+  const defaults = seedDatabase();
+  dbState = { ...defaults, ...dbState };
+  // Clean out any mock projects or tasks loaded from old JSON file
+  dbState.projects = dbState.projects.filter(p => p.id !== "p1-uuid-erp-migration-2026" && p.id !== "p2-uuid-devops-pipeline-2026");
+  dbState.tasks = dbState.tasks.filter(t => t.projectId !== "p1-uuid-erp-migration-2026" && t.projectId !== "p2-uuid-devops-pipeline-2026");
+  dbState.teamMembers = dbState.teamMembers.filter(m => m.projectId !== "p1-uuid-erp-migration-2026" && m.projectId !== "p2-uuid-devops-pipeline-2026");
+  
   return dbState;
 }
 

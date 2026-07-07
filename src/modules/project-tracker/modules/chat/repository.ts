@@ -1,5 +1,7 @@
 import { dbState, generateUUID, saveDatabase } from "../../db.ts";
 import { ChatMessage } from "../../types.ts";
+import { db } from "../../../../shared/database/index.ts";
+import { chatMessages as pgChatMessagesTable } from "../../../../db/schema.ts";
 
 export class ChatRepository {
   async getMessagesByProject(projectId: string): Promise<ChatMessage[]> {
@@ -7,13 +9,23 @@ export class ChatRepository {
   }
 
   async createMessage(data: Partial<ChatMessage>): Promise<ChatMessage> {
-    const newMessage: ChatMessage = {
-      id: generateUUID(),
+    const id = generateUUID();
+
+    const [inserted] = await db.insert(pgChatMessagesTable).values({
+      id,
       projectId: data.projectId!,
       authorId: data.authorId!,
       authorName: data.authorName!,
       content: data.content!,
-      createdAt: new Date().toISOString()
+    }).returning();
+
+    const newMessage: ChatMessage = {
+      id: inserted.id,
+      projectId: inserted.projectId,
+      authorId: inserted.authorId,
+      authorName: inserted.authorName,
+      content: inserted.content,
+      createdAt: inserted.createdAt.toISOString()
     };
 
     dbState.chatMessages.push(newMessage);

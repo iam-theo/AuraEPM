@@ -2,15 +2,18 @@ import React, { useEffect, useState, useRef } from "react";
 import { api } from "../lib/api.ts";
 import { Task, TimeLog } from "../modules/project-tracker/types.ts";
 import { Play, Square, Check, Clock, ShieldCheck, DollarSign, Plus } from "lucide-react";
+import { useAuth } from "../contexts/AuthContext.tsx";
 
 interface Props {
   projectId: string;
 }
 
 export function TimeTrackingView({ projectId }: Props) {
+  const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [logs, setLogs] = useState<TimeLog[]>([]);
   const [summary, setSummary] = useState<any>(null);
+  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Live Timer States
@@ -28,14 +31,16 @@ export function TimeTrackingView({ projectId }: Props) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [tList, logList, sumData] = await Promise.all([
+      const [tList, logList, sumData, teamList] = await Promise.all([
         api.getTasks(projectId),
         api.getTimeLogs(projectId),
-        api.getTimeSummary(projectId)
+        api.getTimeSummary(projectId),
+        api.getTeam(projectId).catch(() => [])
       ]);
       setTasks(tList);
       setLogs(logList);
       setSummary(sumData);
+      setTeamMembers(teamList);
     } catch (err) {
       console.error(err);
     } finally {
@@ -84,11 +89,17 @@ export function TimeTrackingView({ projectId }: Props) {
     e.preventDefault();
     if (!description) return;
 
+    // Find matching team member in active project team or fallback
+    const activeMember = teamMembers.find(
+      (tm) => tm.email === user?.email || tm.userId === user?.id
+    );
+    const resolvedMemberId = activeMember?.id || teamMembers[0]?.id || "tm-1";
+
     try {
       await api.createTimeLog({
         projectId,
         taskId: selectedTaskId || null,
-        teamMemberId: "usr-alex", // Simulated user
+        teamMemberId: resolvedMemberId,
         hours: manualHours,
         date,
         description,
@@ -265,41 +276,45 @@ export function TimeTrackingView({ projectId }: Props) {
               </tr>
             </thead>
             <tbody>
-              {logs.map(l => (
-                <tr key={l.id} className="border-b border-zinc-850/40 hover:bg-zinc-800/20 text-zinc-300 transition-colors">
-                  <td className="p-3 font-semibold text-zinc-200">Alex Rivera</td>
-                  <td className="p-3 text-zinc-400 font-medium">{getTaskTitle(l.taskId)}</td>
-                  <td className="p-3 text-zinc-400 truncate max-w-[200px]">{l.description}</td>
-                  <td className="p-3 font-mono font-semibold text-indigo-400">{l.hours}h</td>
-                  <td className="p-3">
-                    {l.isBillable ? (
-                      <span className="text-emerald-400 font-medium bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Billable</span>
-                    ) : (
-                      <span className="text-zinc-400 font-medium bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">Standard</span>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    {l.isApproved ? (
-                      <span className="text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center w-fit space-x-1">
-                        <Check className="h-3 w-3" />
-                        <span>Approved</span>
-                      </span>
-                    ) : (
-                      <span className="text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded w-fit inline-block">Pending</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right">
-                    {!l.isApproved && (
-                      <button
-                        onClick={() => handleApprove(l.id)}
-                        className="px-2.5 py-1 bg-indigo-600 text-white text-[11px] font-medium rounded hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/10"
-                      >
-                        Approve Log
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {logs.map(l => {
+                const member = teamMembers.find(tm => tm.id === l.teamMemberId || tm.userId === l.teamMemberId);
+                const memberName = member ? member.name : "System Teammate";
+                return (
+                  <tr key={l.id} className="border-b border-zinc-850/40 hover:bg-zinc-800/20 text-zinc-300 transition-colors">
+                    <td className="p-3 font-semibold text-zinc-200">{memberName}</td>
+                    <td className="p-3 text-zinc-400 font-medium">{getTaskTitle(l.taskId)}</td>
+                    <td className="p-3 text-zinc-400 truncate max-w-[200px]">{l.description}</td>
+                    <td className="p-3 font-mono font-semibold text-indigo-400">{l.hours}h</td>
+                    <td className="p-3">
+                      {l.isBillable ? (
+                        <span className="text-emerald-400 font-medium bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Billable</span>
+                      ) : (
+                        <span className="text-zinc-400 font-medium bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded">Standard</span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      {l.isApproved ? (
+                        <span className="text-emerald-400 font-semibold bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center w-fit space-x-1">
+                          <Check className="h-3 w-3" />
+                          <span>Approved</span>
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-semibold bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded w-fit inline-block">Pending</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right">
+                      {!l.isApproved && (
+                        <button
+                          onClick={() => handleApprove(l.id)}
+                          className="px-2.5 py-1 bg-indigo-600 text-white text-[11px] font-medium rounded hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/10"
+                        >
+                          Approve Log
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
               {logs.length === 0 && (
                 <tr>
                   <td colSpan={7} className="p-4 text-center italic text-zinc-500 bg-[#09090b]">No time allocation lines logged yet.</td>

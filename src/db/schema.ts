@@ -13,6 +13,18 @@ export const programStatusEnum = pgEnum("program_status", ["ACTIVE", "ON_HOLD", 
 export const resourceTypeEnum = pgEnum("resource_type", ["EMPLOYEE", "CONTRACTOR"]);
 export const resourceStatusEnum = pgEnum("resource_status", ["ACTIVE", "ON_LEAVE", "INACTIVE"]);
 
+// NEW IAM & Dashboard Enums
+export const roleStatusEnum = pgEnum("role_status", ["ACTIVE", "INACTIVE", "ARCHIVED"]);
+export const permissionOverrideTypeEnum = pgEnum("permission_override_type", ["ALLOW", "DENY"]);
+export const moduleStatusEnum = pgEnum("module_status", ["ACTIVE", "INACTIVE", "MAINTENANCE", "DEPRECATED"]);
+export const featureStatusEnum = pgEnum("feature_status", ["ACTIVE", "INACTIVE", "BETA", "DEPRECATED"]);
+export const dashboardVisibilityEnum = pgEnum("dashboard_visibility", ["GLOBAL", "DEPARTMENT", "BUSINESS_UNIT", "ROLE", "PRIVATE"]);
+export const policyLevelEnum = pgEnum("policy_level", ["ORGANIZATION", "DEPARTMENT", "BUSINESS_UNIT"]);
+export const genericStatusEnum = pgEnum("generic_status", ["DRAFT", "OPEN", "PENDING", "ACTIVE", "IN_PROGRESS", "RUNNING", "COMPLETED", "APPROVED", "REJECTED", "ARCHIVED", "SUSPENDED", "CANCELLED", "TERMINATED", "RESOLVED", "CLOSED", "LOCKED", "PLANNING", "ON_HOLD", "STABLE", "AT_RISK", "CRITICAL", "ON_TRACK", "VERIFIED", "SUPERSEDED", "DELEGATED", "ESCALATED", "REWORK", "PASSED", "FAILED", "NOT_STARTED", "AWAITING_REVIEW", "REVIEW", "SIGN_OFF", "REWORK_REQUESTED", "CLARIFICATION_REQUESTED", "SUBMITTED", "REVIEWED", "IDENTIFIED", "ASSESSED", "MITIGATED", "ACCEPTED", "IN_REVIEW", "CHANGES_REQUESTED"]);
+export const lifecycleDecisionEnum = pgEnum("lifecycle_decision", ["APPROVE", "REJECT", "REWORK", "CLARIFICATION", "PASSED", "FAILED", "VERIFIED", "SUBMITTED", "REVIEWED", "AWAITING_REVIEW", "APPROVED", "REJECTED", "REWORK_REQUESTED", "CLARIFICATION_REQUESTED"]);
+export const proficiencyLevelEnum = pgEnum("proficiency_level", ["BEGINNER", "INTERMEDIATE", "EXPERT"]);
+export const policyTypeEnum = pgEnum("policy_type", ["ACCESS", "FINANCE", "GOVERNANCE", "SECURITY", "RESOURCE"]);
+
 // Portfolios Table
 export const portfolios = pgTable("portfolios", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -85,6 +97,7 @@ export const projects = pgTable("projects", {
 
 // Tasks Table
 export const tasks = pgTable("tasks", {
+  lifecycleStageId: uuid("lifecycle_stage_id").references(() => lifecycleStages.id),
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
   title: varchar("title", { length: 255 }).notNull(),
@@ -109,7 +122,7 @@ export const risksAndIssues = pgTable("risks_and_issues", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   type: varchar("type", { length: 50 }).notNull(), // 'ISSUE' or 'RISK'
-  status: varchar("status", { length: 50 }).notNull(), // Polymorphic based on type
+  status: genericStatusEnum("status").default("OPEN").notNull(), 
   priority: priorityEnum("priority").default("MEDIUM").notNull(),
   ownerId: varchar("owner_id", { length: 255 }),
   mitigationPlan: text("mitigation_plan"),
@@ -125,12 +138,13 @@ export const deliverables = pgTable("deliverables", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").references(() => projects.id).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(),
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   dueDate: timestamp("due_date"),
   fileUrl: text("file_url"),
   version: varchar("version", { length: 50 }).default("1.0.0"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // Audit Log
@@ -191,13 +205,136 @@ export const permissionGroups = pgTable("permission_groups", {
   deletedAt: timestamp("deleted_at"),
 });
 
+// Modules Table
+export const modules = pgTable("modules", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  version: varchar("version", { length: 50 }).default("1.0.0"),
+  status: moduleStatusEnum("status").default("ACTIVE").notNull(),
+  dependenciesJson: text("dependencies_json"), // JSON array of module codes
+  visibility: dashboardVisibilityEnum("visibility").default("GLOBAL").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Features Table
+export const features = pgTable("features", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  moduleId: uuid("module_id").references(() => modules.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  status: featureStatusEnum("status").default("ACTIVE").notNull(),
+  permissionRequired: varchar("permission_required", { length: 255 }), // Permission key
+  isBeta: boolean("is_beta").default(false).notNull(),
+  isDeprecated: boolean("is_deprecated").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Organization Policies Table
+export const organizationPolicies = pgTable("organization_policies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  type: policyTypeEnum("type").notNull(),
+  level: policyLevelEnum("level").notNull(),
+  targetId: varchar("target_id", { length: 255 }), // Dept ID, BU ID, or Org ID
+  valueJson: text("value_json"), // Policy configuration
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Dashboard Widgets Table
+export const dashboardWidgets = pgTable("dashboard_widgets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 100 }).notNull().unique(),
+  moduleId: uuid("module_id").references(() => modules.id),
+  featureId: uuid("feature_id").references(() => features.id),
+  permissionRequired: varchar("permission_required", { length: 255 }),
+  apiEndpoint: varchar("api_endpoint", { length: 512 }),
+  refreshInterval: integer("refresh_interval").default(300), // seconds
+  componentType: varchar("component_type", { length: 100 }).notNull(), // CHART, KPI, TABLE, LIST
+  defaultConfigJson: text("default_config_json"),
+  visibilityRulesJson: text("visibility_rules_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Dashboard Templates Table
+export const dashboardTemplates = pgTable("dashboard_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  roleId: uuid("role_id").references(() => roles.id),
+  department: varchar("department", { length: 100 }),
+  businessUnit: varchar("business_unit", { length: 100 }),
+  visibility: dashboardVisibilityEnum("visibility").default("GLOBAL").notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Dashboard Layouts Table (Template-Widget Mapping)
+export const dashboardLayouts = pgTable("dashboard_layouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  templateId: uuid("template_id").references(() => dashboardTemplates.id).notNull(),
+  widgetId: uuid("widget_id").references(() => dashboardWidgets.id).notNull(),
+  gridPosX: integer("grid_pos_x").notNull(),
+  gridPosY: integer("grid_pos_y").notNull(),
+  gridWidth: integer("grid_width").notNull(),
+  gridHeight: integer("grid_height").notNull(),
+  isCollapsed: boolean("is_collapsed").default(false).notNull(),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// User Dashboard Preferences Table
+export const userDashboardPreferences = pgTable("user_dashboard_preferences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: varchar("user_id", { length: 255 }).notNull(),
+  templateId: uuid("template_id").references(() => dashboardTemplates.id),
+  layoutOverridesJson: text("layout_overrides_json"), // User-specific grid changes
+  hiddenWidgetsJson: text("hidden_widgets_json"),
+  pinnedWidgetsJson: text("pinned_widgets_json"),
+  favoritesJson: text("favorites_json"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("user_dash_pref_idx").on(table.userId, table.templateId)
+]);
+
+// Role Custom Fields Table (Metadata-driven role attributes)
+export const roleCustomFields = pgTable("role_custom_fields", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  roleId: uuid("role_id").references(() => roles.id).notNull(),
+  fieldName: varchar("field_name", { length: 100 }).notNull(), // approvalLimit, budgetLimit
+  fieldType: varchar("field_type", { length: 50 }).notNull(), // STRING, NUMBER, BOOLEAN, JSON
+  fieldValue: text("field_value"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("role_field_idx").on(table.roleId, table.fieldName)
+]);
+
 // Permissions Table
 export const permissions = pgTable("permissions", {
   id: uuid("id").primaryKey().defaultRandom(),
   groupId: uuid("group_id").references(() => permissionGroups.id).notNull(),
   name: varchar("name", { length: 255 }).notNull().unique(), // dot notation (e.g., projects.create)
+  module: varchar("module", { length: 100 }).notNull(),
+  feature: varchar("feature", { length: 100 }).notNull(),
+  action: varchar("action", { length: 100 }).notNull(),
+  permissionKey: varchar("permission_key", { length: 255 }).notNull(),
   label: varchar("label", { length: 255 }).notNull(),
   description: text("description"),
+  category: varchar("category", { length: 100 }),
+  dependency: varchar("dependency", { length: 255 }), // key of dependent permission
   isSystem: boolean("is_system").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -210,7 +347,17 @@ export const roles = pgTable("roles", {
   name: varchar("name", { length: 255 }).notNull().unique(),
   code: varchar("code", { length: 255 }).notNull().unique(),
   description: text("description"),
+  color: varchar("color", { length: 50 }).default("#6366f1"),
+  icon: varchar("icon", { length: 100 }).default("Shield"),
+  hierarchyLevel: integer("hierarchy_level").default(0).notNull(),
   isSystem: boolean("is_system").default(false).notNull(),
+  isSuperAdmin: boolean("is_super_admin").default(false).notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  status: roleStatusEnum("status").default("ACTIVE").notNull(),
+  departmentScope: varchar("department_scope", { length: 100 }),
+  businessUnitScope: varchar("business_unit_scope", { length: 100 }),
+  createdBy: varchar("created_by", { length: 255 }),
+  updatedBy: varchar("updated_by", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
@@ -390,7 +537,7 @@ export const workflowInstances = pgTable("workflow_instances", {
   entityType: varchar("entity_type", { length: 100 }).notNull(), // PROJECT, TASK, RISK, ISSUE, DELIVERABLE, etc.
   entityId: varchar("entity_id", { length: 255 }).notNull(), // UUID or string id of the governed entity
   currentStateId: uuid("current_state_id").references(() => workflowStates.id).notNull(),
-  status: varchar("status", { length: 50 }).default("RUNNING").notNull(), // RUNNING, COMPLETED, SUSPENDED, CANCELLED
+  status: genericStatusEnum("status").default("ACTIVE").notNull(), 
   startedBy: varchar("started_by", { length: 255 }).notNull(),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
@@ -424,7 +571,7 @@ export const workflowApprovals = pgTable("workflow_approvals", {
   transitionId: uuid("transition_id").references(() => workflowTransitions.id),
   stateId: uuid("state_id").references(() => workflowStates.id),
   approverId: varchar("approver_id", { length: 255 }).notNull(), // User UUID
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, DELEGATED, ESCALATED
+  status: genericStatusEnum("status").default("PENDING").notNull(), 
   actionAt: timestamp("action_at"),
   slaDueDate: timestamp("sla_due_date"),
   isEscalated: boolean("is_escalated").default(false).notNull(),
@@ -516,7 +663,7 @@ export const resourceSkills = pgTable("resource_skills", {
   id: uuid("id").primaryKey().defaultRandom(),
   resourceId: uuid("resource_id").references(() => resources.id).notNull(),
   skill: varchar("skill", { length: 255 }).notNull(),
-  proficiencyLevel: varchar("proficiency_level", { length: 50 }).notNull(), // BEGINNER, INTERMEDIATE, EXPERT
+  proficiencyLevel: proficiencyLevelEnum("proficiency_level").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -570,7 +717,7 @@ export const projectExpenses = pgTable("project_expenses", {
   costCenterId: uuid("cost_center_id").references(() => costCenters.id),
   category: varchar("category", { length: 100 }).notNull(), // TRAVEL, SOFTWARE, HARDWARE, etc.
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   approvedBy: varchar("approved_by", { length: 255 }),
   description: text("description"),
   expenseDate: timestamp("expense_date").notNull(),
@@ -618,7 +765,7 @@ export const changeRequests = pgTable("change_requests", {
   impactAnalysis: text("impact_analysis"),
   proposedBudgetChange: decimal("proposed_budget_change", { precision: 12, scale: 2 }).default("0"),
   proposedScheduleChangeDays: integer("proposed_schedule_change_days").default(0),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, IMPLEMENTED
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   approvalWorkflowInstanceId: uuid("approval_workflow_instance_id"),
   createdBy: varchar("created_by", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -667,7 +814,7 @@ export const lifecycleVersions = pgTable("lifecycle_versions", {
   id: uuid("id").primaryKey().defaultRandom(),
   templateId: uuid("template_id").references(() => lifecycleTemplates.id).notNull(),
   version: integer("version").notNull(),
-  status: varchar("status", { length: 50 }).default("DRAFT").notNull(), // DRAFT, ACTIVE, ARCHIVED
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -705,7 +852,7 @@ export const lifecycleInstances = pgTable("lifecycle_instances", {
   templateId: uuid("template_id").references(() => lifecycleTemplates.id).notNull(),
   versionId: uuid("version_id").references(() => lifecycleVersions.id),
   currentStageId: uuid("current_stage_id").references(() => lifecycleStages.id),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, IN_PROGRESS, COMPLETED, SUSPENDED, TERMINATED
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   startedAt: timestamp("started_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -733,9 +880,9 @@ export const documentVersions = pgTable("document_versions", {
   filePath: varchar("file_path", { length: 512 }).notNull(),
   fileName: varchar("file_name", { length: 255 }).notNull(),
   version: integer("version").default(1).notNull(),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, VERIFIED, REJECTED, SUPERSEDED
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   uploadedBy: varchar("uploaded_by", { length: 255 }).notNull(),
-  verificationStatus: varchar("verification_status", { length: 50 }).default("PENDING").notNull(), // PENDING, IN_PROGRESS, VERIFIED, REJECTED
+  verificationStatus: genericStatusEnum("verification_status").default("PENDING").notNull(),
   reviewerNotes: text("reviewer_notes"),
   checksum: varchar("checksum", { length: 255 }),
   virusScanPassed: boolean("virus_scan_passed").default(true).notNull(),
@@ -750,7 +897,7 @@ export const documentVerifications = pgTable("document_verifications", {
   id: uuid("id").primaryKey().defaultRandom(),
   documentVersionId: uuid("document_version_id").references(() => documentVersions.id).notNull(),
   reviewerId: varchar("reviewer_id", { length: 255 }).notNull(),
-  status: varchar("status", { length: 50 }).notNull(), // VERIFIED, REJECTED
+  status: genericStatusEnum("status").notNull(),
   notes: text("notes"),
   verifiedAt: timestamp("verified_at").defaultNow().notNull(),
 });
@@ -785,7 +932,7 @@ export const stageApprovals = pgTable("stage_approvals", {
   stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
   role: varchar("role", { length: 100 }).notNull(),
   assignedApproverId: varchar("assigned_approver_id", { length: 255 }),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, REWORK
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   comments: text("comments"),
   signedAt: timestamp("signed_at"),
   digitalSignature: text("digital_signature"),
@@ -798,7 +945,7 @@ export const headOfOperationsReviews = pgTable("head_of_operations_reviews", {
   instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
   stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
   reviewerId: varchar("reviewer_id", { length: 255 }).notNull(),
-  status: varchar("status", { length: 50 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED, REWORK_REQUESTED, CLARIFICATION_REQUESTED
+  status: genericStatusEnum("status").default("PENDING").notNull(),
   comments: text("comments"),
   rejectedChecklistItemsJson: text("rejected_checklist_items_json"),
   rejectedDocumentsJson: text("rejected_documents_json"),
@@ -874,7 +1021,7 @@ export const lifecycleDecisions = pgTable("lifecycle_decisions", {
   id: uuid("id").primaryKey().defaultRandom(),
   instanceId: uuid("instance_id").references(() => lifecycleInstances.id).notNull(),
   stageId: uuid("stage_id").references(() => lifecycleStages.id).notNull(),
-  decision: varchar("decision", { length: 100 }).notNull(), // APPROVE, REJECT, REWORK, CLARIFICATION
+  decision: lifecycleDecisionEnum("decision").notNull(),
   madeBy: varchar("made_by", { length: 255 }).notNull(),
   comments: text("comments"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

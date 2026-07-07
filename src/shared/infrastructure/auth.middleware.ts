@@ -11,7 +11,14 @@ export const authMiddleware = async (req: any, res: Response, next: NextFunction
   const token = authHeader.split("Bearer ")[1];
   try {
     const accessSecret = process.env.JWT_ACCESS_SECRET || "default_access_secret_2026";
-    const decodedToken = jwt.verify(token, accessSecret);
+    const decodedToken = jwt.verify(token, accessSecret) as any;
+    if (decodedToken && typeof decodedToken === "object") {
+      if (decodedToken.uid && !decodedToken.id) {
+        decodedToken.id = decodedToken.uid;
+      } else if (decodedToken.id && !decodedToken.uid) {
+        decodedToken.uid = decodedToken.id;
+      }
+    }
     req.user = decodedToken;
     next();
   } catch (error) {
