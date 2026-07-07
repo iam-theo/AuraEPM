@@ -55,6 +55,7 @@ export const programs = pgTable("programs", {
 // Resources Table
 export const resources = pgTable("resources", {
   id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id),
   name: varchar("name", { length: 255 }).notNull(),
   type: resourceTypeEnum("type").notNull(),
   department: varchar("department", { length: 100 }),
@@ -90,6 +91,8 @@ export const projects = pgTable("projects", {
   budget: decimal("budget", { precision: 12, scale: 2 }),
   actualCost: decimal("actual_cost", { precision: 12, scale: 2 }).default("0"),
   healthScore: integer("health_score").default(100),
+  milestonesJson: text("milestones_json"),
+  tasksJson: text("tasks_json"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),

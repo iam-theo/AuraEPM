@@ -24,7 +24,7 @@ const processQueue = (error: any, token: string | null = null) => {
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('accessToken');
-    if (token) {
+    if (token && token !== 'null' && token !== 'undefined' && token.trim() !== '') {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

@@ -26,12 +26,12 @@ export interface ApiResponse<T> {
 }
 
 export class ResponseFormatter {
-  static success<T>(res: Response, data: T, message?: string, code = StatusCode.OK, meta?: any) {
+  static success<T>(res: Response, data: T, message?: string, code = StatusCode.OK, extra: any = {}) {
     return res.status(code).json({
       success: true,
       message,
       data,
-      meta,
+      ...extra
     });
   }
 

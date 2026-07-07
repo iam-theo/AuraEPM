@@ -132,7 +132,7 @@ router.get("/me", authMiddleware, authController.getMe);
  *       200:
  *         description: Array of roles retrieved successfully
  */
-router.get("/roles", IAMController.listRoles);
+// router.get("/roles", IAMController.listRoles);
 
 /**
  * @swagger
@@ -165,7 +165,7 @@ router.get("/roles", IAMController.listRoles);
  *       500:
  *         description: Database insert error
  */
-router.post("/roles", IAMController.createRole);
+// router.post("/roles", IAMController.createRole);
 
 /**
  * @swagger
@@ -202,7 +202,7 @@ router.post("/roles", IAMController.createRole);
  *       500:
  *         description: Database error
  */
-router.post("/roles/:roleId/permissions", IAMController.assignPermissions);
+// router.post("/roles/:roleId/permissions", IAMController.assignPermissions);
 
 /**
  * @swagger
