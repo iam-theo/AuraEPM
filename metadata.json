@@ -1,5 +1,5 @@
 {
-  "name": "AuraPM",
+  "name": "FASYL PMO",
   "description": "Enterprise Project & Portfolio Management Platform with IAM Administration Console, Dynamic Dashboard Engine, and Lifecycle Gateway.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

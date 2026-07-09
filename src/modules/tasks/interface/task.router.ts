@@ -2,6 +2,7 @@ import { Router } from "express";
 import { TaskController } from "./task.controller.ts";
 import { TaskService } from "../application/task.service.ts";
 import { DrizzleTaskRepository } from "../infrastructure/drizzle-task.repository.ts";
+import { authMiddleware } from "../../../shared/infrastructure/auth.middleware.ts";
 
 const router = Router();
 const repository = new DrizzleTaskRepository();
@@ -10,22 +11,40 @@ const controller = new TaskController(service);
 
 /**
  * @swagger
+ * /tasks/me:
+ *   get:
+ *     summary: Retrieve tasks assigned to the authenticated user
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of assigned tasks
+ */
+router.get("/me", authMiddleware, controller.getMyTasks);
+
+/**
+ * @swagger
  * /tasks:
  *   get:
- *     summary: Retrieve all tasks
+ *     summary: Retrieve all tasks (filtered by user access)
  *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: A list of all tasks
  */
-router.get("/", controller.getAll);
+router.get("/", authMiddleware, controller.getAll);
 
 /**
  * @swagger
  * /tasks/project/{projectId}:
  *   get:
- *     summary: Retrieve tasks by project ID
+ *     summary: Retrieve tasks by project ID (filtered by access)
  *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: projectId
@@ -36,7 +55,7 @@ router.get("/", controller.getAll);
  *       200:
  *         description: A list of tasks for the project
  */
-router.get("/project/:projectId", controller.getByProject);
+router.get("/project/:projectId", authMiddleware, controller.getByProject);
 
 /**
  * @swagger
@@ -44,6 +63,8 @@ router.get("/project/:projectId", controller.getByProject);
  *   get:
  *     summary: Retrieve a specific task by ID
  *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -54,7 +75,7 @@ router.get("/project/:projectId", controller.getByProject);
  *       200:
  *         description: Task details
  */
-router.get("/:id", controller.getOne);
+router.get("/:id", authMiddleware, controller.getOne);
 
 /**
  * @swagger
@@ -77,7 +98,7 @@ router.get("/:id", controller.getOne);
  *       201:
  *         description: Created task
  */
-router.post("/", controller.create);
+router.post("/", authMiddleware, controller.create);
 
 /**
  * @swagger
@@ -85,6 +106,8 @@ router.post("/", controller.create);
  *   patch:
  *     summary: Update the status of a task
  *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -104,7 +127,7 @@ router.post("/", controller.create);
  *       200:
  *         description: Updated task status
  */
-router.patch("/:id/status", controller.updateStatus);
+router.patch("/:id/status", authMiddleware, controller.updateStatus);
 
 /**
  * @swagger
@@ -112,6 +135,8 @@ router.patch("/:id/status", controller.updateStatus);
  *   put:
  *     summary: Update an existing task
  *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -133,7 +158,7 @@ router.patch("/:id/status", controller.updateStatus);
  *       200:
  *         description: Updated task
  */
-router.put("/:id", controller.update);
+router.put("/:id", authMiddleware, controller.update);
 
 /**
  * @swagger
@@ -141,6 +166,8 @@ router.put("/:id", controller.update);
  *   delete:
  *     summary: Delete a task
  *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -151,6 +178,6 @@ router.put("/:id", controller.update);
  *       200:
  *         description: Task deleted successfully
  */
-router.delete("/:id", controller.delete);
+router.delete("/:id", authMiddleware, controller.delete);
 
 export default router;

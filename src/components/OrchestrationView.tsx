@@ -25,6 +25,8 @@ import {
   Send,
   Workflow
 } from "lucide-react";
+import { api } from "../lib/api.ts";
+import { resolveActorNameAndRole, formatLogPayloadDetails } from "../lib/logUtils.ts";
 
 interface Props {
   projectId: string;
@@ -44,6 +46,7 @@ export function OrchestrationView({ projectId }: Props) {
   const [timeline, setTimeline] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [systemSettings, setSystemSettings] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
 
   // Forms states
   const [newJobName, setNewJobName] = useState("sla.escalation.check");
@@ -71,14 +74,15 @@ export function OrchestrationView({ projectId }: Props) {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [healthRes, jobsRes, catalogRes, configRes, integrationsRes, settingsRes, auditRes] = await Promise.all([
+      const [healthRes, jobsRes, catalogRes, configRes, integrationsRes, settingsRes, auditRes, usersList] = await Promise.all([
         fetch("/api/v1/orchestration/health").then((r) => r.json()),
         fetch("/api/v1/orchestration/jobs").then((r) => r.json()),
         fetch("/api/v1/orchestration/events").then((r) => r.json()),
         fetch("/api/v1/orchestration/configs?category=SLA").then((r) => r.json()),
         fetch("/api/v1/orchestration/integrations").then((r) => r.json()),
         fetch("/api/v1/orchestration/settings").then((r) => r.json()),
-        fetch("/api/v1/orchestration/audit?limit=20").then((r) => r.json())
+        fetch("/api/v1/orchestration/audit?limit=20").then((r) => r.json()),
+        api.getUsersForSelection().catch(() => [])
       ]);
 
       if (healthRes.success) setSystemHealth(healthRes.data);
@@ -88,6 +92,7 @@ export function OrchestrationView({ projectId }: Props) {
       if (integrationsRes.success) setIntegrations(integrationsRes.data);
       if (settingsRes.success) setSystemSettings(settingsRes.data);
       if (auditRes.success) setAuditLogs(auditRes.data);
+      if (usersList) setUsers(usersList);
 
       if (projectId) {
         const timelineRes = await fetch(`/api/v1/orchestration/timeline/${projectId}`).then((r) => r.json());
@@ -916,16 +921,26 @@ export function OrchestrationView({ projectId }: Props) {
               </p>
 
               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 relative border-l border-zinc-800 pl-4 ml-2">
-                {auditLogs.map((log) => (
-                  <div key={log.id} className="relative pb-4 last:pb-0">
+                {auditLogs.map((log: any, idx: number) => (
+                  <div key={log.id || idx} className="relative pb-4 last:pb-0">
                     <span className="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-amber-500 border-2 border-zinc-900" />
                     <div className="bg-[#09090b] border border-zinc-850 rounded-lg p-3 space-y-1">
                       <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono">
-                        <span>{new Date(log.createdAt).toLocaleDateString()}</span>
+                        <span>
+                          {(() => {
+                            const d = new Date(log.createdAt || log.timestamp || "");
+                            return isNaN(d.getTime()) ? "N/A" : d.toLocaleString("en-GB", { timeZone: "Africa/Lagos" });
+                          })()} (Lagos GMT+1)
+                        </span>
                         <span className="bg-zinc-850 text-amber-400 border border-zinc-800 px-1.5 rounded font-bold">{log.moduleName} - {log.action}</span>
                       </div>
-                      <p className="text-zinc-300 text-[11px] leading-snug">{JSON.stringify(log.payload)}</p>
-                      <span className="text-[9px] text-zinc-500 block font-mono">Responsible Operator: {log.actorId}</span>
+                      <p className="text-zinc-300 text-[11px] leading-snug">
+                        <span className="font-semibold text-zinc-400">Activity: </span>
+                        {formatLogPayloadDetails(log.payload, log.details || log.description)}
+                      </p>
+                      <span className="text-[9px] text-zinc-500 block font-mono">
+                        Executed By: <span className="text-amber-400 font-semibold">{resolveActorNameAndRole(log.actorId || log.performedBy || log.userId || log.userName, users)}</span>
+                      </span>
                     </div>
                   </div>
                 ))}

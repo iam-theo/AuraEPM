@@ -692,8 +692,15 @@ export class LifecycleService {
     const finalFileName = `${Date.now()}-${fileData.fileName}`;
     const finalPath = path.join(targetDir, finalFileName);
 
-    // Move file from temp to project-specific stage folder
-    fs.renameSync(fileData.tempPath, finalPath);
+    // Move file from temp to project-specific stage folder (safely handling cross-device mounts)
+    try {
+      fs.copyFileSync(fileData.tempPath, finalPath);
+      fs.unlinkSync(fileData.tempPath);
+    } catch (renameErr) {
+      console.warn("Fallback file copy/move due to cross-device limit:", renameErr);
+      // Fallback if copy/unlink also failed
+      fs.renameSync(fileData.tempPath, finalPath);
+    }
 
     // Relative path for client access (will be served as static)
     const relativePath = `/uploads/projects/${projectId}/stages/${stageId}/${finalFileName}`;

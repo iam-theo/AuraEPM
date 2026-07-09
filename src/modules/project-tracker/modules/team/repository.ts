@@ -1,4 +1,4 @@
-import { dbState, generateUUID, saveDatabase } from "../../db.ts";
+import { dbState, generateUUID, saveDatabase, createNotification, createAuditLog } from "../../db.ts";
 import { TeamMember } from "../../types.ts";
 import { db } from "../../../../shared/database/index.ts";
 import { eq } from "drizzle-orm";
@@ -35,14 +35,39 @@ export class TeamRepository {
    * Insert a new team member
    */
   async create(data: Partial<TeamMember>): Promise<TeamMember> {
-    let resourceId = data.userId;
-    
-    // Find or create resource in Postgres
-    if (!resourceId || !resourceId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-      // Check if there is already a resource with this name
-      const existingResources = await db.select().from(pgResourcesTable).where(eq(pgResourcesTable.name, data.name!));
-      if (existingResources.length > 0) {
-        resourceId = existingResources[0].id;
+    let resourceId = null;
+    const isUserUuid = data.userId && data.userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+
+    if (isUserUuid) {
+      // 1. Check if a resource already exists for this userId
+      const existingByUser = await db.select().from(pgResourcesTable).where(eq(pgResourcesTable.userId, data.userId!));
+      if (existingByUser.length > 0) {
+        resourceId = existingByUser[0].id;
+      } else {
+        // 2. Check if a resource already exists with this name (but no userId)
+        const existingByName = await db.select().from(pgResourcesTable).where(eq(pgResourcesTable.name, data.name!));
+        if (existingByName.length > 0) {
+          // Link it to the user
+          await db.update(pgResourcesTable).set({ userId: data.userId! }).where(eq(pgResourcesTable.id, existingByName[0].id));
+          resourceId = existingByName[0].id;
+        } else {
+          // Create a new resource linked to this user
+          const [newRes] = await db.insert(pgResourcesTable).values({
+            userId: data.userId!,
+            name: data.name!,
+            type: "EMPLOYEE",
+            department: data.role || "Team Member",
+            costPerHour: "50.00",
+            status: "ACTIVE"
+          }).returning();
+          resourceId = newRes.id;
+        }
+      }
+    } else {
+      // No valid user UUID, check by name
+      const existingByName = await db.select().from(pgResourcesTable).where(eq(pgResourcesTable.name, data.name!));
+      if (existingByName.length > 0) {
+        resourceId = existingByName[0].id;
       } else {
         const [newRes] = await db.insert(pgResourcesTable).values({
           name: data.name!,
@@ -80,6 +105,18 @@ export class TeamRepository {
 
     dbState.teamMembers.push(newMember);
     saveDatabase();
+
+    // Notify the user they have been assigned to the project
+    if (data.userId && data.userId.trim() !== "") {
+      const project = dbState.projects.find(p => p.id === data.projectId);
+      const projectName = project ? project.name : "a new project";
+      await createNotification(
+        data.userId,
+        "Project Assigned",
+        `You have been assigned to the project "${projectName}" as a ${data.role || "Team Member"}.`,
+        "SYSTEM"
+      );
+    }
     return newMember;
   }
 

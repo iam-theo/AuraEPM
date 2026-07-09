@@ -12,6 +12,43 @@ const ai = new GoogleGenAI({
   },
 });
 
+// Robust generateContent wrapper with automatic retry (exponential backoff) and model fallback
+async function generateContentWithRetryAndFallback(params: {
+  contents: any;
+  config?: any;
+  primaryModel?: string;
+}) {
+  const primaryModel = params.primaryModel || "gemini-3.5-flash";
+  const fallbackModels = ["gemini-flash-latest", "gemini-3.1-flash-lite"];
+  
+  const modelsToTry = [primaryModel, ...fallbackModels];
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    let attempts = 2;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        console.log(`[Gemini Agent] Attempting generateContent with model: ${model} (Attempt ${attempt}/${attempts})`);
+        const response = await ai.models.generateContent({
+          model: model,
+          contents: params.contents,
+          config: params.config,
+        });
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`[Gemini Agent] Model ${model} failed (Attempt ${attempt}/${attempts}):`, err.message || err);
+        if (attempt < attempts) {
+          const delay = attempt * 1000;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to generate content with all Gemini models.");
+}
+
 // Tool declarations
 const getProjectSummaryDeclaration: FunctionDeclaration = {
   name: "get_project_summary",
@@ -190,8 +227,7 @@ Active Year: 2026
 When executing tools, do so on behalf of the user. Be concise, professional, and clear.`;
 
   // First request to Gemini with tools
-  const response = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
+  const response = await generateContentWithRetryAndFallback({
     contents: [
       ...history,
       { role: "user", parts: [{ text: message }] }
@@ -419,8 +455,7 @@ When executing tools, do so on behalf of the user. Be concise, professional, and
     })),
   };
 
-  const finalResponse = await ai.models.generateContent({
-    model: "gemini-3.5-flash",
+  const finalResponse = await generateContentWithRetryAndFallback({
     contents: [
       ...history,
       userMsgPart,
@@ -437,3 +472,76 @@ When executing tools, do so on behalf of the user. Be concise, professional, and
     executedActions,
   };
 }
+
+export async function getExecutiveInsights(projectId: string) {
+  try {
+    const project = dbState.projects.find((p) => p.id === projectId && !p.deletedAt) || dbState.projects[0];
+    const tasks = dbState.tasks.filter((t) => t.projectId === projectId && !t.deletedAt);
+    const risks = dbState.risks.filter((r) => r.projectId === projectId && !r.deletedAt);
+    const issues = dbState.issues.filter((i) => i.projectId === projectId && !i.deletedAt);
+    const team = dbState.teamMembers.filter((t) => t.projectId === projectId && !t.deletedAt);
+
+    const projectDataSummary = {
+      name: project?.name,
+      code: project?.code,
+      status: project?.status,
+      budget: project?.budget,
+      progress: project?.progress,
+      tasksCount: tasks.length,
+      tasksCompleted: tasks.filter(t => {
+        const stat = String((t as any).status || "").toUpperCase();
+        return stat === "DONE" || stat === "COMPLETED";
+      }).length,
+      tasksInProgress: tasks.filter(t => {
+        const stat = String((t as any).status || "").toUpperCase();
+        return stat === "IN_PROGRESS";
+      }).length,
+      tasksTodo: tasks.filter(t => {
+        const stat = String((t as any).status || "").toUpperCase();
+        return stat === "TODO";
+      }).length,
+      risksCount: risks.length,
+      highRisksCount: risks.filter(r => {
+        const priority = String((r as any).priority || "").toUpperCase();
+        const impact = String((r as any).impact || "").toUpperCase();
+        return priority === "HIGH" || priority === "URGENT" || impact === "HIGH";
+      }).length,
+      issuesCount: issues.length,
+      criticalIssuesCount: issues.filter(i => {
+        const severity = String((i as any).severity || "").toUpperCase();
+        return severity === "CRITICAL" || severity === "HIGH";
+      }).length,
+      teamCount: team.length
+    };
+
+    const prompt = `You are the lead PMO Strategist and Executive Advisor for AuraPM.
+Based on the following real-time project metrics, write an expert, high-precision Executive Strategic Insights Report.
+Include:
+1. **Executive Summary**: High-level overview of execution momentum and strategic posture.
+2. **Financial Health Analysis**: Analyze budget vs actual cost pacing, financial risks, and burn-rate warnings.
+3. **Bottleneck Analysis & Risks**: Highlight critical paths, blocker patterns, and high severity risks.
+4. **Actionable Strategic Recommendations**: 2-3 specific, high-leverage steps the executive can take to resolve bottlenecks or secure delivery.
+
+Project Context Data:
+${JSON.stringify(projectDataSummary, null, 2)}
+
+Requirements:
+- Speak in an authoritative, professional, and clear corporate tone.
+- Keep the language clean and elegant, avoiding generic placeholder advice.
+- Return the response formatted as structured Markdown. Keep it concise but insightful.
+`;
+
+    const response = await generateContentWithRetryAndFallback({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        systemInstruction: "You are the Lead PMO Director and AI Executive Consultant for AuraPM."
+      }
+    });
+
+    return response.text || "No insights resolved.";
+  } catch (err: any) {
+    console.error("Failed to generate executive insights:", err);
+    return `Error resolving insights: ${err.message || "Unknown error"}`;
+  }
+}
+

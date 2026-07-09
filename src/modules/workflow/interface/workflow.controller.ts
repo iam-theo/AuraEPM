@@ -1,6 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import { WorkflowService } from "../application/workflow.service.ts";
 import { ResponseFormatter, StatusCode } from "../../../shared/infrastructure/response.ts";
+import { db } from "../../../shared/database/index.ts";
+import { workflowApprovals } from "../../../db/schema.ts";
+import { eq, and } from "drizzle-orm";
 
 export class WorkflowController {
   constructor(private readonly workflowService: WorkflowService) {}
@@ -178,6 +181,29 @@ export class WorkflowController {
     try {
       const stats = await this.workflowService.getWorkflowStatistics();
       return ResponseFormatter.success(res, stats);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  getMyApprovals = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as any).user?.uid;
+      if (!userId) {
+        return res.status(401).json({ success: false, message: "Authentication required" });
+      }
+
+      const list = await db
+        .select()
+        .from(workflowApprovals)
+        .where(
+          and(
+            eq(workflowApprovals.approverId, userId),
+            eq(workflowApprovals.status, "PENDING")
+          )
+        );
+
+      return ResponseFormatter.success(res, list);
     } catch (err) {
       next(err);
     }

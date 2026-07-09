@@ -13,15 +13,31 @@ const controller = new ProjectController(service);
 
 /**
  * @swagger
+ * /projects/me:
+ *   get:
+ *     summary: Retrieve projects assigned to or managed by the authenticated user
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: A list of assigned projects
+ */
+router.get("/me", authMiddleware, controller.getMyProjects);
+
+/**
+ * @swagger
  * /projects:
  *   get:
- *     summary: Retrieve a list of all projects
+ *     summary: Retrieve a list of all projects (filtered by access)
  *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: A list of projects
  */
-router.get("/", controller.getAll);
+router.get("/", authMiddleware, controller.getAll);
 
 /**
  * @swagger
@@ -29,6 +45,8 @@ router.get("/", controller.getAll);
  *   get:
  *     summary: Retrieve a specific project by ID
  *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -41,7 +59,7 @@ router.get("/", controller.getAll);
  *       404:
  *         description: Project not found
  */
-router.get("/:id", controller.getOne);
+router.get("/:id", authMiddleware, controller.getOne);
 
 /**
  * @swagger

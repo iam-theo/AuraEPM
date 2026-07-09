@@ -8,8 +8,13 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "../lib/api";
+import { UsersView } from "./UsersView";
+import { SettingsView } from "./SettingsView";
+import { OrchestrationView } from "./OrchestrationView";
+import { AuditReportsView } from "./AuditReportsView";
+import { LifecycleTemplateBuilderView } from "./LifecycleTemplateBuilderView";
 
-type AdminTab = "IAM" | "DASHBOARDS" | "POLICIES" | "MODULES";
+type AdminTab = "IAM" | "DASHBOARDS" | "POLICIES" | "MODULES" | "USERS" | "SETTINGS" | "ORCHESTRATION" | "AUDIT" | "LIFECYCLE";
 
 export const AdminConsole: React.FC = () => {
   const [activeTab, setActiveTab] = useState<AdminTab>("IAM");
@@ -185,6 +190,26 @@ export const AdminConsole: React.FC = () => {
             showToast={showToast}
           />
         );
+      case "USERS":
+        return (
+          <UsersView />
+        );
+      case "SETTINGS":
+        return (
+          <SettingsView />
+        );
+      case "ORCHESTRATION":
+        return (
+          <OrchestrationView projectId="super_admin_global" />
+        );
+      case "AUDIT":
+        return (
+          <AuditReportsView projectId="super_admin_global" />
+        );
+      case "LIFECYCLE":
+        return (
+          <LifecycleTemplateBuilderView />
+        );
       default:
         return null;
     }
@@ -198,12 +223,12 @@ export const AdminConsole: React.FC = () => {
           <div className="p-5 border-b border-slate-100">
             <h1 className="text-sm font-bold tracking-wider text-slate-900 flex items-center gap-2 uppercase">
               <Shield className="w-4 h-4 text-indigo-600" />
-              Access Control
+              Super Admin
             </h1>
-            <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider font-semibold font-mono">IAM & Security Center</p>
+            <p className="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider font-semibold font-mono">Platform Control Center</p>
           </div>
 
-          <nav className="p-3 space-y-1">
+          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-12rem)]">
             <NavButton 
               active={activeTab === "IAM"} 
               onClick={() => setActiveTab("IAM")}
@@ -211,10 +236,28 @@ export const AdminConsole: React.FC = () => {
               label="Identity & Access"
             />
             <NavButton 
+              active={activeTab === "USERS"} 
+              onClick={() => setActiveTab("USERS")}
+              icon={<Users className="w-4 h-4" />}
+              label="User Management"
+            />
+            <NavButton 
+              active={activeTab === "ORCHESTRATION"} 
+              onClick={() => setActiveTab("ORCHESTRATION")}
+              icon={<Activity className="w-4 h-4" />}
+              label="Orchestration"
+            />
+            <NavButton 
               active={activeTab === "DASHBOARDS"} 
               onClick={() => setActiveTab("DASHBOARDS")}
               icon={<Layout className="w-4 h-4" />}
               label="Dashboard Engine"
+            />
+            <NavButton 
+              active={activeTab === "LIFECYCLE"} 
+              onClick={() => setActiveTab("LIFECYCLE")}
+              icon={<Layers className="w-4 h-4" />}
+              label="Lifecycle Templates"
             />
             <NavButton 
               active={activeTab === "POLICIES"} 
@@ -227,6 +270,18 @@ export const AdminConsole: React.FC = () => {
               onClick={() => setActiveTab("MODULES")}
               icon={<Box className="w-4 h-4" />}
               label="Module Control"
+            />
+            <NavButton 
+              active={activeTab === "AUDIT"} 
+              onClick={() => setActiveTab("AUDIT")}
+              icon={<AlertTriangle className="w-4 h-4" />}
+              label="Audit & Reports"
+            />
+            <NavButton 
+              active={activeTab === "SETTINGS"} 
+              onClick={() => setActiveTab("SETTINGS")}
+              icon={<Settings className="w-4 h-4" />}
+              label="System Settings"
             />
           </nav>
         </div>

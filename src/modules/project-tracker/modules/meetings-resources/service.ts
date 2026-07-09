@@ -64,21 +64,31 @@ export class MeetingsResourcesService {
   // EARNED VALUE MANAGEMENT (EVM) MATHEMATICS
   // ==========================================
   async getProjectProgressEVM(projectId: string) {
-    const project = dbState.projects.find(p => p.id === projectId && !p.deletedAt);
-    if (!project) throw new Error("Project record not found");
+    const { db } = await import("../../../../shared/database/index.ts");
+    const { projects: pgProjectsTable, tasks: pgTasksTable } = await import("../../../../db/schema.ts");
+    const { eq, isNull, and } = await import("drizzle-orm");
 
-    const tasks = dbState.tasks.filter(t => t.projectId === projectId && !t.deletedAt);
-    const logs = dbState.timeLogs.filter(l => l.projectId === projectId);
+    const projectRecords = await db.select().from(pgProjectsTable).where(and(eq(pgProjectsTable.id, projectId), isNull(pgProjectsTable.deletedAt)));
+    const project = projectRecords[0];
 
-    const budget = project.budget || 100000; // BAC: Budget At Completion
-    const progressPercent = project.progress / 100; // 0.0 to 1.0
+    if (!project) throw new Error("Project record not found in database");
+
+    const tasks = await db.select().from(pgTasksTable).where(and(eq(pgTasksTable.projectId, projectId), isNull(pgTasksTable.deletedAt)));
+
+    const budget = project.budget ? parseFloat(project.budget) : 100000; // BAC: Budget At Completion
+    
+    let totalProgress = 0;
+    if (tasks.length > 0) {
+      totalProgress = tasks.reduce((sum, t) => sum + (t.completionPercentage || 0), 0) / tasks.length;
+    }
+    const progressPercent = totalProgress / 100; // 0.0 to 1.0
 
     // 1. EV (Earned Value) = BAC * Progress%
     const earnedValue = budget * progressPercent;
 
     // 2. PV (Planned Value) = BAC * Expected% (calculated linearly across timeline days)
-    const start = new Date(project.startDate).getTime();
-    const end = new Date(project.endDate).getTime();
+    const start = project.startDate ? new Date(project.startDate).getTime() : new Date().getTime();
+    const end = project.endDate ? new Date(project.endDate).getTime() : new Date().getTime();
     const today = new Date().getTime();
 
     let plannedValue = 0;
@@ -93,10 +103,9 @@ export class MeetingsResourcesService {
       plannedValue = budget * expectedProgress;
     }
 
-    // 3. AC (Actual Cost) = Logged Hours * Avg Billing Rate ($75/hour)
-    const totalHoursLogged = logs.reduce((sum, l) => sum + l.hours, 0);
-    const avgBillingRate = 75; // standard rate in USD/hr
-    const actualCost = totalHoursLogged * avgBillingRate;
+    // 3. AC (Actual Cost) 
+    // Uses the actual cost saved on the project.
+    const actualCost = project.actualCost ? parseFloat(project.actualCost) : 0;
 
     // 4. Variances
     const costVariance = earnedValue - actualCost; // CV = EV - AC
@@ -114,7 +123,7 @@ export class MeetingsResourcesService {
     return {
       projectId,
       projectName: project.name,
-      progressPercent: project.progress,
+      progressPercent: totalProgress,
       budgetAtCompletion: budget,
       earnedValue: Math.round(earnedValue),
       plannedValue: Math.round(plannedValue),

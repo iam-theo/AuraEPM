@@ -16,6 +16,7 @@ export class UserMapper {
       avatar: user.avatar,
       status: user.status,
       isActive: user.isActive,
+      isLocked: user.isLocked,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

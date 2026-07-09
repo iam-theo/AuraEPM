@@ -18,12 +18,15 @@ const getValidToken = () => {
 export async function request(endpoint: string, options: RequestInit = {}) {
   try {
     const token = getValidToken();
+    const headers: any = {
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      ...options.headers,
+    };
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
     const res = await fetch(`${BASE_URL}${endpoint}`, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
+      headers,
       ...options,
     });
 
@@ -54,13 +57,16 @@ const getAuthHeaders = () => {
 };
 
 const v1Fetch = (url: string, options: RequestInit = {}) => {
+  const headers: any = {
+    ...getAuthHeaders(),
+    ...options.headers,
+  };
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
   return fetch(url, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-      ...options.headers,
-    },
+    headers,
   }).then(async res => {
     const contentType = res.headers.get("content-type");
     let data: any;
@@ -269,8 +275,12 @@ export const api = {
   // Gemini Agent
   chatWithAgent: (data: { message: string; projectId: string; googleAccessToken?: string; history?: any[] }) =>
     request("/gemini-agent/chat", { method: "POST", body: JSON.stringify(data) }),
+  getExecutiveInsights: (projectId: string) =>
+    request("/gemini-agent/executive-insights", { method: "POST", body: JSON.stringify({ projectId }) }),
 
   // IAM Administration
+  getUsersForSelection: () => v1Fetch("/api/v1/auth/users/selection"),
+  getRolesForSelection: () => v1Fetch("/api/v1/auth/roles/selection"),
   getRoles: () => v1Fetch("/api/v1/auth/roles"),
   getPermissions: () => v1Fetch("/api/v1/auth/permissions"),
   getPermissionMatrix: () => v1Fetch("/api/v1/auth/matrix"),
@@ -306,6 +316,10 @@ export const api = {
   }),
   put: (url: string, data: any) => v1Fetch(`/api${url}`, { 
     method: "PUT", 
+    body: JSON.stringify(data) 
+  }),
+  patch: (url: string, data: any) => v1Fetch(`/api${url}`, { 
+    method: "PATCH", 
     body: JSON.stringify(data) 
   }),
   delete: (url: string) => v1Fetch(`/api${url}`, { 

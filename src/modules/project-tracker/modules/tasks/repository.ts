@@ -1,4 +1,4 @@
-import { dbState, generateUUID, saveDatabase } from "../../db.ts";
+import { dbState, generateUUID, saveDatabase, createNotification, createAuditLog } from "../../db.ts";
 import { Task, Subtask, Milestone, Dependency, TaskStatus } from "../../types.ts";
 import { db } from "../../../../shared/database/index.ts";
 import { eq, inArray } from "drizzle-orm";
@@ -96,6 +96,14 @@ export class TasksRepository {
 
     dbState.tasks.push(newTask);
     saveDatabase();
+    if (newTask.assigneeId) {
+      await createNotification(
+        newTask.assigneeId,
+        "New Task Assigned",
+        `You have been assigned the task "${newTask.title}".`,
+        "TASK_ASSIGNED"
+      );
+    }
     return newTask;
   }
 
@@ -143,6 +151,9 @@ export class TasksRepository {
       .where(eq(pgTasksTable.id, id))
       .returning();
 
+    const currentAssignee = current.assigneeId;
+    const newAssignee = data.assigneeId;
+
     dbState.tasks[index] = {
       ...current,
       ...data,
@@ -151,6 +162,15 @@ export class TasksRepository {
     };
 
     saveDatabase();
+
+    if (newAssignee && newAssignee !== currentAssignee) {
+      await createNotification(
+        newAssignee,
+        "Task Assigned",
+        `You have been assigned the task "${dbState.tasks[index].title}".`,
+        "TASK_ASSIGNED"
+      );
+    }
     return dbState.tasks[index];
   }
 

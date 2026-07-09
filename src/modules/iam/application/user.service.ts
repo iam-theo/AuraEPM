@@ -1,3 +1,4 @@
+import bcrypt from "bcrypt";
 import { UserRepository } from "../infrastructure/user.repository";
 import { UserMapper } from "./user.mapper";
 import { UserSearchFilters, PaginatedResponse, UserDTO } from "./user.dto";
@@ -104,5 +105,86 @@ export class UserService {
 
   async getUserMilestones(userId: string) {
     return await this.repository.findUserMilestones(userId);
+  }
+
+  async createUser(userData: any): Promise<UserDTO> {
+    const password = userData.password || "Password123!";
+    const saltRounds = 10;
+    const hash = await bcrypt.hash(password, saltRounds);
+    
+    const roleCode = userData.role || userData.roleCode;
+    const permissions = userData.permissions || userData.directPermissions || [];
+
+    const user = await this.repository.createUser(userData, hash, roleCode, permissions);
+    return UserMapper.toDTO(user);
+  }
+
+  async updateUser(id: string, userData: any): Promise<UserDTO> {
+    const user = await this.repository.updateUser(id, userData);
+    if (!user) {
+      throw new NotFoundError(`User with ID ${id} not found`);
+    }
+    return UserMapper.toDTO(user);
+  }
+
+  async deleteUser(id: string, permanent: boolean = false, actorId?: string): Promise<any> {
+    const user = await this.repository.deleteUser(id, permanent, actorId);
+    if (!user) {
+      throw new NotFoundError(`User with ID ${id} not found`);
+    }
+    return user;
+  }
+
+  async updateUserStatus(id: string, status: string, isActive: boolean, isLocked?: boolean, actorId?: string): Promise<UserDTO> {
+    const user = await this.repository.updateUserStatus(id, status, isActive, isLocked, actorId);
+    if (!user) {
+      throw new NotFoundError(`User with ID ${id} not found`);
+    }
+    return UserMapper.toDTO(user);
+  }
+
+  async activateUser(id: string, actorId?: string): Promise<UserDTO> {
+    const user = await this.repository.activateUser(id, actorId);
+    if (!user) throw new NotFoundError(`User with ID ${id} not found`);
+    return UserMapper.toDTO(user);
+  }
+
+  async deactivateUser(id: string, actorId?: string): Promise<UserDTO> {
+    const user = await this.repository.deactivateUser(id, actorId);
+    if (!user) throw new NotFoundError(`User with ID ${id} not found`);
+    return UserMapper.toDTO(user);
+  }
+
+  async suspendUser(id: string, actorId?: string): Promise<UserDTO> {
+    const user = await this.repository.suspendUser(id, actorId);
+    if (!user) throw new NotFoundError(`User with ID ${id} not found`);
+    return UserMapper.toDTO(user);
+  }
+
+  async lockUser(id: string, actorId?: string): Promise<UserDTO> {
+    const user = await this.repository.lockUser(id, actorId);
+    if (!user) throw new NotFoundError(`User with ID ${id} not found`);
+    return UserMapper.toDTO(user);
+  }
+
+  async unlockUser(id: string, actorId?: string): Promise<UserDTO> {
+    const user = await this.repository.unlockUser(id, actorId);
+    if (!user) throw new NotFoundError(`User with ID ${id} not found`);
+    return UserMapper.toDTO(user);
+  }
+
+  async updateUserRoles(userId: string, roleCodes: string[]): Promise<boolean> {
+    return await this.repository.updateUserRoles(userId, roleCodes);
+  }
+
+  async updateUserPermissions(userId: string, permissionNames: string[]): Promise<boolean> {
+    return await this.repository.updateUserPermissions(userId, permissionNames);
+  }
+
+  async resetPassword(userId: string, newPassword?: string): Promise<boolean> {
+    const password = newPassword || "Password123!";
+    const hash = await bcrypt.hash(password, 10);
+    const updated = await this.repository.updatePassword(userId, hash);
+    return !!updated;
   }
 }

@@ -19,7 +19,7 @@ export class NotificationCenterService {
       const template = await this.configCenter.get<any>(
         templateKey,
         {
-          title: "AuraPM Alert",
+          title: "FASYL PMO Alert",
           body: "System Alert: Notification payload missing for " + templateKey,
         }
       );

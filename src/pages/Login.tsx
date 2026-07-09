@@ -57,7 +57,7 @@ export const Login = () => {
         </div>
         
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">AuraEPM Login</h1>
+          <h1 className="text-2xl font-bold text-zinc-100 tracking-tight">FASYL PMO Login</h1>
           <p className="text-zinc-500 text-sm mt-2">Enterprise Project Management</p>
         </div>
 
