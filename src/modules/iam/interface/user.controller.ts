@@ -200,4 +200,135 @@ export class UserController {
       next(error);
     }
   }
+
+  createUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await this.userService.createUser(req.body);
+      return ResponseFormatter.success(res, user, "User created successfully", 201);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  updateUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const user = await this.userService.updateUser(id, req.body);
+      return ResponseFormatter.success(res, user, "User updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  deleteUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const permanent = req.query.permanent === "true";
+      await this.userService.deleteUser(id, permanent, actorId);
+      return ResponseFormatter.success(res, null, "User deleted successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  updateUserStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const { status, isActive, isLocked } = req.body;
+      const user = await this.userService.updateUserStatus(id, status, isActive, isLocked, actorId);
+      return ResponseFormatter.success(res, user, "User status updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  activateUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const user = await this.userService.activateUser(id, actorId);
+      return ResponseFormatter.success(res, user, "User activated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  deactivateUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const user = await this.userService.deactivateUser(id, actorId);
+      return ResponseFormatter.success(res, user, "User deactivated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  suspendUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const user = await this.userService.suspendUser(id, actorId);
+      return ResponseFormatter.success(res, user, "User suspended successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  lockUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const user = await this.userService.lockUser(id, actorId);
+      return ResponseFormatter.success(res, user, "User locked successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  unlockUser = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const actorId = (req as any).user?.id;
+      const user = await this.userService.unlockUser(id, actorId);
+      return ResponseFormatter.success(res, user, "User unlocked successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  updateUserRoles = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { roles } = req.body;
+      await this.userService.updateUserRoles(id, roles);
+      return ResponseFormatter.success(res, null, "User roles updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  updateUserPermissions = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { permissions } = req.body;
+      await this.userService.updateUserPermissions(id, permissions);
+      return ResponseFormatter.success(res, null, "User permissions updated successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  resetPassword = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { password } = req.body;
+      await this.userService.resetPassword(id, password);
+      return ResponseFormatter.success(res, null, "User password reset successfully");
+    } catch (error) {
+      next(error);
+    }
+  }
 }

@@ -90,22 +90,22 @@ export function LifecycleTemplateBuilderView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-semibold text-zinc-100 flex items-center">
-            <Settings className="w-6 h-6 mr-2 text-indigo-400" /> Lifecycle Template Builder
+          <h2 className="text-2xl font-semibold text-slate-900 flex items-center">
+            <Settings className="w-6 h-6 mr-2 text-indigo-600" /> Lifecycle Template Builder
           </h2>
-          <p className="text-zinc-400 text-sm mt-1">Configure project stages, checklist requirements, document types, and approval gates.</p>
+          <p className="text-slate-500 text-sm mt-1">Configure project stages, checklist requirements, document types, and approval gates.</p>
         </div>
-        <button disabled={loading} onClick={handleSave} className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded text-sm transition-colors">
+        <button disabled={loading} onClick={handleSave} className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded text-sm transition-colors shadow-sm">
           <Save className="w-4 h-4 mr-2" /> Save Configuration
         </button>
       </div>
 
-      <div className="flex space-x-4 border-b border-zinc-800 pb-4">
+      <div className="flex space-x-4 border-b border-slate-200 pb-4">
         {templates.map(t => (
           <button 
             key={t.id} 
             onClick={() => loadTemplateDetails(t.id)}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${selectedTemplate?.id === t.id ? 'bg-zinc-800 text-indigo-400 border border-zinc-700' : 'text-zinc-400 hover:bg-zinc-900'}`}
+            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${selectedTemplate?.id === t.id ? 'bg-slate-100 text-indigo-600 border border-slate-200' : 'text-slate-500 hover:bg-slate-50'}`}
           >
             {t.name}
           </button>
@@ -115,15 +115,15 @@ export function LifecycleTemplateBuilderView() {
       {selectedTemplate && (
         <div className="space-y-8">
           {selectedTemplate.stages?.map((stage: any, sIdx: number) => (
-            <div key={stage.id || sIdx} className="bg-[#18181b] border border-zinc-800 rounded-xl overflow-hidden">
-              <div className="bg-zinc-900/50 p-4 border-b border-zinc-800 flex items-center justify-between">
+            <div key={stage.id || sIdx} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center space-x-4 flex-1">
-                  <div className="bg-zinc-800 px-3 py-1 rounded text-xs font-mono text-zinc-300 border border-zinc-700">Stage {stage.stageNumber}</div>
+                  <div className="bg-slate-200 px-3 py-1 rounded text-xs font-mono text-slate-700 border border-slate-300">Stage {stage.stageNumber}</div>
                   <input 
                     type="text" 
                     value={stage.name || ''} 
                     onChange={e => updateStageField(sIdx, 'name', e.target.value)}
-                    className="bg-transparent border-none text-lg font-medium text-zinc-200 focus:outline-none focus:ring-0 px-0 flex-1"
+                    className="bg-transparent border-none text-lg font-medium text-slate-900 focus:outline-none focus:ring-0 px-0 flex-1"
                     placeholder="Stage Name"
                   />
                 </div>
@@ -133,15 +133,15 @@ export function LifecycleTemplateBuilderView() {
                 {/* Stage Info */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1">Description / Label</label>
+                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Description / Label</label>
                     <textarea 
                       value={stage.description || ''} 
                       onChange={e => updateStageField(sIdx, 'description', e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-sm text-zinc-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-20"
+                      className="w-full bg-white border border-slate-200 rounded p-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 h-20"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1 flex items-center">
+                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1 flex items-center">
                       <Users className="w-3 h-3 mr-1" /> Designated Signees / Approvers
                     </label>
                     <input 
@@ -149,33 +149,33 @@ export function LifecycleTemplateBuilderView() {
                       value={Array.isArray(stage.approverRoles) ? stage.approverRoles.join(', ') : (stage.approverRoles || '')}
                       onChange={e => updateStageField(sIdx, 'approverRoles', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
                       placeholder="e.g. Head of Ops, Finance Director"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded p-2 text-sm text-zinc-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                      className="w-full bg-white border border-slate-200 rounded p-2 text-sm text-slate-900 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
                     />
                   </div>
                 </div>
 
                 {/* Checklists */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                    <h4 className="text-sm font-medium text-zinc-300 flex items-center"><CheckSquare className="w-4 h-4 mr-1.5 text-emerald-400" /> Checkboxes / Forms</h4>
-                    <button onClick={() => addChecklist(sIdx)} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="text-sm font-medium text-slate-700 flex items-center"><CheckSquare className="w-4 h-4 mr-1.5 text-emerald-600" /> Checkboxes / Forms</h4>
+                    <button onClick={() => addChecklist(sIdx)} className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center">
                       <Plus className="w-3 h-3 mr-1" /> Add
                     </button>
                   </div>
                   {stage.checklists?.map((cl: any, clIdx: number) => (
-                    <div key={clIdx} className="flex items-start space-x-2 bg-zinc-900/50 p-2 rounded border border-zinc-800/50">
+                    <div key={clIdx} className="flex items-start space-x-2 bg-slate-50 p-2 rounded border border-slate-200">
                       <input 
                         type="checkbox" 
                         checked={!!cl.isMandatory} 
                         onChange={e => updateChecklist(sIdx, clIdx, 'isMandatory', e.target.checked)}
-                        className="mt-1 rounded bg-zinc-800 border-zinc-700 text-indigo-500 focus:ring-indigo-500/50"
+                        className="mt-1 rounded bg-white border-slate-300 text-indigo-600 focus:ring-indigo-500"
                         title="Mandatory"
                       />
                       <input 
                         type="text" 
                         value={cl.itemText || ''} 
                         onChange={e => updateChecklist(sIdx, clIdx, 'itemText', e.target.value)}
-                        className="bg-transparent border-none text-sm text-zinc-300 focus:outline-none flex-1 py-0 px-1"
+                        className="bg-transparent border-none text-sm text-slate-700 focus:outline-none flex-1 py-0 px-1"
                         placeholder="Checklist Item Label"
                       />
                     </div>
@@ -184,27 +184,27 @@ export function LifecycleTemplateBuilderView() {
 
                 {/* Documents */}
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                    <h4 className="text-sm font-medium text-zinc-300 flex items-center"><FileText className="w-4 h-4 mr-1.5 text-amber-400" /> Upload Requirements</h4>
-                    <button onClick={() => addDocument(sIdx)} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="text-sm font-medium text-slate-700 flex items-center"><FileText className="w-4 h-4 mr-1.5 text-amber-500" /> Upload Requirements</h4>
+                    <button onClick={() => addDocument(sIdx)} className="text-xs text-indigo-600 hover:text-indigo-700 flex items-center">
                       <Plus className="w-3 h-3 mr-1" /> Add
                     </button>
                   </div>
                   {stage.documents?.map((doc: any, docIdx: number) => (
-                    <div key={docIdx} className="flex flex-col space-y-2 bg-zinc-900/50 p-2 rounded border border-zinc-800/50">
+                    <div key={docIdx} className="flex flex-col space-y-2 bg-slate-50 p-2 rounded border border-slate-200">
                       <div className="flex items-center space-x-2">
                         <input 
                           type="checkbox" 
                           checked={!!doc.isMandatory} 
                           onChange={e => updateDocument(sIdx, docIdx, 'isMandatory', e.target.checked)}
-                          className="rounded bg-zinc-800 border-zinc-700 text-indigo-500 focus:ring-indigo-500/50"
+                          className="rounded bg-white border-slate-300 text-indigo-600 focus:ring-indigo-500"
                           title="Mandatory Upload"
                         />
                         <input 
                           type="text" 
                           value={doc.name || ''} 
                           onChange={e => updateDocument(sIdx, docIdx, 'name', e.target.value)}
-                          className="bg-transparent border-none text-sm font-medium text-zinc-300 focus:outline-none flex-1 py-0 px-1"
+                          className="bg-transparent border-none text-sm font-medium text-slate-900 focus:outline-none flex-1 py-0 px-1"
                           placeholder="Document Title"
                         />
                       </div>
@@ -212,7 +212,7 @@ export function LifecycleTemplateBuilderView() {
                         <select 
                           value={doc.category || 'INTERNAL'}
                           onChange={e => updateDocument(sIdx, docIdx, 'category', e.target.value)}
-                          className="bg-zinc-800 border-none text-xs text-zinc-400 rounded focus:ring-0 py-1 pl-2 pr-6"
+                          className="bg-white border-slate-200 text-xs text-slate-600 rounded focus:ring-0 py-1 pl-2 pr-6"
                         >
                           <option value="FINANCIAL">Financial</option>
                           <option value="INTERNAL">Internal</option>

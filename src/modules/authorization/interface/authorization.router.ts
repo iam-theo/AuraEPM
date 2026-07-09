@@ -74,6 +74,7 @@ router.get("/matrix", authMiddleware, requirePermissions("admin.permissions"), c
  *       200:
  *         description: List of roles
  */
+router.get("/roles/selection", authMiddleware, controller.listRoles);
 router.get("/roles", authMiddleware, requirePermissions("admin.roles"), controller.listRoles);
 
 /**
@@ -262,6 +263,7 @@ router.delete("/users/:userId/permissions/:permissionName", authMiddleware, requ
  *       200:
  *         description: User profile
  */
+router.get("/users/selection", authMiddleware, controller.listUsers);
 router.get("/users", authMiddleware, requirePermissions("admin.users"), controller.listUsers);
 router.get("/users/:userId/profile", authMiddleware, requirePermissions("admin.users"), controller.getUserSecurityProfile);
 

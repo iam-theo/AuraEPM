@@ -13,13 +13,13 @@ export class SystemAdministrationService {
       const existing = await db.select().from(tenantSettings).limit(1);
       if (existing.length === 0) {
         await db.insert(tenantSettings).values({
-          orgName: "AuraPM Global Holdings",
+          orgName: "FASYL PMO Global Holdings",
           maintenanceMode: false,
-          licenseKey: "AURA-ENT-2026-999-PROD",
+          licenseKey: "FASYL-ENT-2026-999-PROD",
           licenseStatus: "ACTIVE",
           settingsJson: JSON.stringify({
             divisions: ["North America Delivery", "EMEA Operations", "APAC Innovation Hub"],
-            allowedSsoDomains: ["aurapm.com", "globalholdings.com"],
+            allowedSsoDomains: ["fasylpmo.com", "globalholdings.com"],
             enforcePasswordMfa: true,
           }),
         });

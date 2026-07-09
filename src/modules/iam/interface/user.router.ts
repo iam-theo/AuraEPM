@@ -209,4 +209,333 @@ router.get("/:id/login-history", authMiddleware, requirePermissions("admin.users
 router.get("/:id/resources", authMiddleware, requirePermissions("admin.users"), controller.getUserResources);
 router.get("/:id/milestones", authMiddleware, requirePermissions("admin.users"), controller.getUserMilestones);
 
+/**
+ * @swagger
+ * /users:
+ *   post:
+ *     summary: Create a new user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - firstName
+ *               - lastName
+ *               - email
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               username:
+ *                 type: string
+ *               phoneNumber:
+ *                 type: string
+ *               employeeId:
+ *                 type: string
+ *               department:
+ *                 type: string
+ *               jobTitle:
+ *                 type: string
+ *               organization:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: User created successfully
+ */
+router.post("/", authMiddleware, requirePermissions("admin.users"), controller.createUser);
+
+/**
+ * @swagger
+ * /users/{id}:
+ *   put:
+ *     summary: Update user details, role, and direct permissions
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: User updated successfully
+ */
+router.put("/:id", authMiddleware, requirePermissions("admin.users"), controller.updateUser);
+
+/**
+ * @swagger
+ * /users/{id}:
+ *   delete:
+ *     summary: Delete a user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: permanent
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ */
+router.delete("/:id", authMiddleware, requirePermissions("admin.users"), controller.deleteUser);
+
+/**
+ * @swagger
+ * /users/{id}/status:
+ *   patch:
+ *     summary: Update user status
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *               - isActive
+ *             properties:
+ *               status:
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
+ *               isLocked:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Status updated successfully
+ */
+router.patch("/:id/status", authMiddleware, requirePermissions("admin.users"), controller.updateUserStatus);
+
+/**
+ * @swagger
+ * /users/{id}/activate:
+ *   post:
+ *     summary: Activate user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User activated successfully
+ */
+router.post("/:id/activate", authMiddleware, requirePermissions("admin.users"), controller.activateUser);
+
+/**
+ * @swagger
+ * /users/{id}/deactivate:
+ *   post:
+ *     summary: Deactivate user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User deactivated successfully
+ */
+router.post("/:id/deactivate", authMiddleware, requirePermissions("admin.users"), controller.deactivateUser);
+
+/**
+ * @swagger
+ * /users/{id}/suspend:
+ *   post:
+ *     summary: Suspend user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User suspended successfully
+ */
+router.post("/:id/suspend", authMiddleware, requirePermissions("admin.users"), controller.suspendUser);
+
+/**
+ * @swagger
+ * /users/{id}/lock:
+ *   post:
+ *     summary: Lock user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User locked successfully
+ */
+router.post("/:id/lock", authMiddleware, requirePermissions("admin.users"), controller.lockUser);
+
+/**
+ * @swagger
+ * /users/{id}/unlock:
+ *   post:
+ *     summary: Unlock user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User unlocked successfully
+ */
+router.post("/:id/unlock", authMiddleware, requirePermissions("admin.users"), controller.unlockUser);
+
+/**
+ * @swagger
+ * /users/{id}/roles:
+ *   patch:
+ *     summary: Update user roles
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - roles
+ *             properties:
+ *               roles:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Roles updated successfully
+ */
+router.patch("/:id/roles", authMiddleware, requirePermissions("admin.users"), controller.updateUserRoles);
+
+/**
+ * @swagger
+ * /users/{id}/permissions:
+ *   patch:
+ *     summary: Update user direct permissions
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - permissions
+ *             properties:
+ *               permissions:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Permissions updated successfully
+ */
+router.patch("/:id/permissions", authMiddleware, requirePermissions("admin.users"), controller.updateUserPermissions);
+
+/**
+ * @swagger
+ * /users/{id}/reset-password:
+ *   post:
+ *     summary: Reset user password
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ */
+router.post("/:id/reset-password", authMiddleware, requirePermissions("admin.users"), controller.resetPassword);
+
 export default router;

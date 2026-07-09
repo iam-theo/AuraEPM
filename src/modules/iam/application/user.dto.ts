@@ -12,6 +12,7 @@ export interface UserDTO {
   avatar?: string | null;
   status?: string | null;
   isActive: boolean;
+  isLocked?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

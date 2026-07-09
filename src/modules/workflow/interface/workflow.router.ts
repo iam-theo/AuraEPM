@@ -33,6 +33,20 @@ router.get("/statistics", controller.statistics);
 
 /**
  * @swagger
+ * /workflows/approvals/me:
+ *   get:
+ *     summary: Retrieve pending approvals for the authenticated user
+ *     tags: [Workflows]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of pending approvals
+ */
+router.get("/approvals/me", authMiddleware, controller.getMyApprovals);
+
+/**
+ * @swagger
  * /workflows:
  *   get:
  *     summary: Retrieve all workflows

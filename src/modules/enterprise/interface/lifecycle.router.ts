@@ -115,7 +115,6 @@ router.get("/instances/:instanceId/stages/:stageId/readiness", controller.getLif
  *       201:
  *         description: Document uploaded
  */
-router.post("/instances/:instanceId/documents/:stageDocumentId/upload", controller.uploadLifecycleDocument);
 
 /**
  * @swagger

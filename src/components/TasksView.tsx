@@ -5,16 +5,21 @@ import { List, Kanban, Plus, SlidersHorizontal, Trash2, ArrowUpRight, CheckSquar
 
 interface Props {
   projectId: string;
+  defaultLayout?: "list" | "kanban";
 }
 
-export function TasksView({ projectId }: Props) {
+export function TasksView({ projectId, defaultLayout = "list" }: Props) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [team, setTeam] = useState<any[]>([]);
   const [milestones, setMilestones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Layout Style: "list" or "kanban"
-  const [layout, setLayout] = useState<"list" | "kanban">("list");
+  const [layout, setLayout] = useState<"list" | "kanban">(defaultLayout);
+
+  useEffect(() => {
+    setLayout(defaultLayout);
+  }, [defaultLayout]);
 
   // Filters & Sorting state
   const [search, setSearch] = useState("");
@@ -37,13 +42,15 @@ export function TasksView({ projectId }: Props) {
   const [dueDate, setDueDate] = useState(new Date(Date.now() + 86400000 * 7).toISOString().substring(0, 10));
   const [priority, setPriority] = useState("MEDIUM");
   const [assigneeId, setAssigneeId] = useState("");
+  const [selectedEnterpriseUserId, setSelectedEnterpriseUserId] = useState("");
+  const [usersList, setUsersList] = useState<any[]>([]);
   const [milestoneId, setMilestoneId] = useState("");
   const [estimatedHours, setEstimatedHours] = useState(8);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [tList, members, mList] = await Promise.all([
+      const [tList, members, mList, usersData] = await Promise.all([
         api.getTasks(projectId, {
           search,
           status: statusFilter,
@@ -53,11 +60,13 @@ export function TasksView({ projectId }: Props) {
           sortOrder
         }),
         api.getTeam(projectId),
-        api.getMilestones(projectId)
+        api.getMilestones(projectId),
+        api.getUsersForSelection().catch(() => [])
       ]);
       setTasks(tList);
       setTeam(members);
       setMilestones(mList);
+      setUsersList(usersData || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -74,6 +83,31 @@ export function TasksView({ projectId }: Props) {
     if (!title) return;
 
     try {
+      let finalAssigneeId: string | null = null;
+
+      if (selectedEnterpriseUserId) {
+        // Find if this user is already in the project's team
+        const selectedUser = usersList.find(u => u.id === selectedEnterpriseUserId);
+        if (selectedUser) {
+          const existingMember = team.find(m => m.userId === selectedUser.id || m.email === selectedUser.email);
+          if (existingMember) {
+            finalAssigneeId = existingMember.id;
+          } else {
+            // Automatically bind this user to the project as a team member resource!
+            const newMember = await api.assignMember({
+              projectId,
+              name: `${selectedUser.firstName} ${selectedUser.lastName}`,
+              role: selectedUser.department || "Team Member",
+              email: selectedUser.email,
+              capacity: 40,
+              allocation: 100,
+              userId: selectedUser.id
+            });
+            finalAssigneeId = newMember.id;
+          }
+        }
+      }
+
       await api.createTask({
         projectId,
         title,
@@ -81,13 +115,14 @@ export function TasksView({ projectId }: Props) {
         startDate,
         dueDate,
         priority: priority as any,
-        assigneeId: assigneeId || null,
+        assigneeId: finalAssigneeId,
         milestoneId: milestoneId || null,
         estimatedHours
       });
       setIsAdding(false);
       setTitle("");
       setDescription("");
+      setSelectedEnterpriseUserId("");
       loadData();
     } catch (err: any) {
       alert(err.message || "Failed to create task");
@@ -188,25 +223,25 @@ export function TasksView({ projectId }: Props) {
   return (
     <div className="space-y-6">
       {/* Search and Layout Filter Panel */}
-      <div className="bg-[#18181b] border border-zinc-800 p-4 rounded-xl shadow-lg shadow-black/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center space-x-2 flex-1">
           <input
             type="text"
             placeholder="Search active project task lists..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full max-w-sm bg-[#09090b] border border-zinc-800 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-zinc-100 placeholder-zinc-600 transition-colors"
+            className="w-full max-w-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 text-slate-900 placeholder-slate-500 transition-colors"
           />
-          <SlidersHorizontal className="h-4 w-4 text-zinc-500" />
+          <SlidersHorizontal className="h-4 w-4 text-slate-400" />
         </div>
 
         <div className="flex items-center space-x-3 text-xs">
           {/* Layout switches */}
-          <div className="bg-[#09090b] p-1 rounded-lg flex space-x-1 border border-zinc-800">
+          <div className="bg-slate-50 p-1 rounded-lg flex space-x-1 border border-slate-200">
             <button
               onClick={() => setLayout("list")}
               className={`p-1.5 rounded-md transition flex items-center space-x-1 ${
-                layout === "list" ? "bg-zinc-800 text-indigo-400 border border-zinc-700 font-semibold" : "text-zinc-500 hover:text-zinc-300"
+                layout === "list" ? "bg-white text-indigo-600 border border-slate-200 font-semibold shadow-sm" : "text-slate-500 hover:text-slate-900"
               }`}
             >
               <List className="h-3.5 w-3.5" />
@@ -215,7 +250,7 @@ export function TasksView({ projectId }: Props) {
             <button
               onClick={() => setLayout("kanban")}
               className={`p-1.5 rounded-md transition flex items-center space-x-1 ${
-                layout === "kanban" ? "bg-zinc-800 text-indigo-400 border border-zinc-700 font-semibold" : "text-zinc-500 hover:text-zinc-300"
+                layout === "kanban" ? "bg-white text-indigo-600 border border-slate-200 font-semibold shadow-sm" : "text-slate-500 hover:text-slate-900"
               }`}
             >
               <Kanban className="h-3.5 w-3.5" />
@@ -225,7 +260,7 @@ export function TasksView({ projectId }: Props) {
 
           <button
             onClick={() => setIsAdding(!isAdding)}
-            className="bg-indigo-600 text-white px-3.5 py-2 rounded-lg font-medium hover:bg-indigo-700 transition flex items-center space-x-1.5 shadow-lg shadow-indigo-600/10"
+            className="bg-indigo-600 text-white px-3.5 py-2 rounded-lg font-medium hover:bg-indigo-700 transition flex items-center space-x-1.5 shadow-sm"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Create Task</span>
@@ -234,10 +269,10 @@ export function TasksView({ projectId }: Props) {
       </div>
 
       {/* Advanced Filter Row */}
-      <div className="bg-[#18181b] border border-zinc-800 p-4 rounded-xl shadow-lg shadow-black/10 grid grid-cols-1 md:grid-cols-4 gap-3 text-xs text-zinc-300">
+      <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm grid grid-cols-1 md:grid-cols-4 gap-3 text-xs text-slate-700">
         <div>
-          <label className="block text-zinc-500 mb-1">Filter by Status</label>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-zinc-100">
+          <label className="block text-slate-500 mb-1 font-medium">Filter by Status</label>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-slate-800">
             <option value="">All Statuses</option>
             <option value="TODO">To Do</option>
             <option value="IN_PROGRESS">In Progress</option>
@@ -246,8 +281,8 @@ export function TasksView({ projectId }: Props) {
           </select>
         </div>
         <div>
-          <label className="block text-zinc-500 mb-1">Filter by Priority</label>
-          <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-zinc-100">
+          <label className="block text-slate-500 mb-1 font-medium">Filter by Priority</label>
+          <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-slate-800">
             <option value="">All Priorities</option>
             <option value="LOW">Low</option>
             <option value="MEDIUM">Medium</option>
@@ -256,8 +291,8 @@ export function TasksView({ projectId }: Props) {
           </select>
         </div>
         <div>
-          <label className="block text-zinc-500 mb-1">Filter by Assignee</label>
-          <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-zinc-100">
+          <label className="block text-slate-500 mb-1 font-medium">Filter by Assignee</label>
+          <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-slate-800">
             <option value="">All Team Members</option>
             {team.map(m => (
               <option key={m.id} value={m.id}>{m.name}</option>
@@ -265,9 +300,9 @@ export function TasksView({ projectId }: Props) {
           </select>
         </div>
         <div>
-          <label className="block text-zinc-500 mb-1">Sort Registry By</label>
+          <label className="block text-slate-500 mb-1 font-medium">Sort Registry By</label>
           <div className="flex space-x-1">
-            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-zinc-100">
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 focus:outline-none focus:border-indigo-500 text-slate-800">
               <option value="dueDate">Due Date</option>
               <option value="priority">Priority Rating</option>
               <option value="estimatedHours">Estimated Effort</option>
@@ -275,7 +310,7 @@ export function TasksView({ projectId }: Props) {
             </select>
             <button
               onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-              className="bg-zinc-800 border border-zinc-700 hover:bg-zinc-700 text-zinc-300 rounded-lg px-2"
+              className="bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 rounded-lg px-2"
             >
               {sortOrder.toUpperCase()}
             </button>
@@ -285,12 +320,12 @@ export function TasksView({ projectId }: Props) {
 
       {/* Bulk Operations Toolbar */}
       {selectedTaskIds.length > 0 && (
-        <div className="bg-indigo-950/40 text-indigo-200 border border-indigo-900/40 p-3 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+        <div className="bg-indigo-50 text-indigo-700 border border-indigo-100 p-3 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-medium">
           <span>{selectedTaskIds.length} tasks selected</span>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center space-x-1.5">
               <span>Set Status:</span>
-              <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="bg-zinc-900 border border-zinc-800 text-zinc-100 rounded p-1 focus:outline-none">
+              <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value)} className="bg-white border border-slate-200 text-slate-800 rounded p-1 focus:outline-none">
                 <option value="">Select...</option>
                 <option value="TODO">To Do</option>
                 <option value="IN_PROGRESS">In Progress</option>
@@ -300,7 +335,7 @@ export function TasksView({ projectId }: Props) {
             </div>
             <div className="flex items-center space-x-1.5">
               <span>Set Priority:</span>
-              <select value={bulkPriority} onChange={e => setBulkPriority(e.target.value)} className="bg-zinc-900 border border-zinc-800 text-zinc-100 rounded p-1 focus:outline-none">
+              <select value={bulkPriority} onChange={e => setBulkPriority(e.target.value)} className="bg-white border border-slate-200 text-slate-800 rounded p-1 focus:outline-none">
                 <option value="">Select...</option>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
@@ -321,39 +356,48 @@ export function TasksView({ projectId }: Props) {
 
       {/* Add Task Modal-form */}
       {isAdding && (
-        <form onSubmit={handleCreate} className="bg-[#18181b] border border-zinc-800 p-6 rounded-xl space-y-4 text-xs text-zinc-300 shadow-lg shadow-black/10">
-          <h3 className="text-sm font-semibold text-zinc-100">Add New Work Task</h3>
+        <form onSubmit={handleCreate} className="bg-white border border-slate-200 p-6 rounded-xl space-y-4 text-xs text-slate-700 shadow-sm">
+          <h3 className="text-sm font-semibold text-slate-900">Add New Work Task</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-zinc-500 mb-1">Task Title</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500" />
+              <label className="block text-slate-500 mb-1 font-medium">Task Title</label>
+              <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500" />
             </div>
-            <div>
-              <label className="block text-zinc-500 mb-1">Target Assignee Specialist</label>
-              <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500">
+             <div>
+              <label className="block text-slate-500 mb-1 font-medium">Target Assignee (Enterprise User)</label>
+              <select
+                value={selectedEnterpriseUserId}
+                onChange={e => setSelectedEnterpriseUserId(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500"
+              >
                 <option value="">Unassigned</option>
-                {team.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
-                ))}
+                {usersList.map(u => {
+                  const isMember = team.some(m => m.userId === u.id || m.email === u.email);
+                  return (
+                    <option key={u.id} value={u.id}>
+                      {u.firstName} {u.lastName} ({u.email}) {isMember ? "[Project Team]" : "[Bind on Assign]"}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-zinc-500 mb-1">Task Description / Deliverables Guidelines</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500" />
+            <label className="block text-slate-500 mb-1 font-medium">Task Description / Deliverables Guidelines</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-zinc-500 mb-1">Start Date</label>
-              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500" />
+              <label className="block text-slate-500 mb-1 font-medium">Start Date</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500" />
             </div>
             <div>
-              <label className="block text-zinc-500 mb-1">Due Date</label>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500" />
+              <label className="block text-slate-500 mb-1 font-medium">Due Date</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} required className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500" />
             </div>
             <div>
-              <label className="block text-zinc-500 mb-1">Milestone Anchor</label>
-              <select value={milestoneId} onChange={e => setMilestoneId(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500">
+              <label className="block text-slate-500 mb-1 font-medium">Milestone Anchor</label>
+              <select value={milestoneId} onChange={e => setMilestoneId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500">
                 <option value="">No Milestone Anchor</option>
                 {milestones.map(m => (
                   <option key={m.id} value={m.id}>{m.title}</option>
@@ -363,8 +407,8 @@ export function TasksView({ projectId }: Props) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-zinc-500 mb-1">Priority Rating</label>
-              <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500">
+              <label className="block text-slate-500 mb-1 font-medium">Priority Rating</label>
+              <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500">
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
@@ -372,12 +416,12 @@ export function TasksView({ projectId }: Props) {
               </select>
             </div>
             <div>
-              <label className="block text-zinc-500 mb-1">Estimated Effort (Hours)</label>
-              <input type="number" value={estimatedHours} onChange={e => setEstimatedHours(Number(e.target.value))} min={1} className="w-full bg-[#09090b] border border-zinc-800 rounded-lg p-2.5 text-zinc-100 focus:outline-none focus:border-indigo-500" />
+              <label className="block text-slate-500 mb-1 font-medium">Estimated Effort (Hours)</label>
+              <input type="number" value={estimatedHours} onChange={e => setEstimatedHours(Number(e.target.value))} min={1} className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500" />
             </div>
           </div>
           <div className="flex justify-end space-x-2">
-            <button type="button" onClick={() => setIsAdding(false)} className="px-4 py-2 border border-zinc-700 bg-zinc-850 text-zinc-300 hover:bg-zinc-800 rounded-lg transition">Cancel</button>
+            <button type="button" onClick={() => setIsAdding(false)} className="px-4 py-2 border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 rounded-lg transition">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition shadow-lg shadow-indigo-600/10">Save Task Node</button>
           </div>
         </form>
@@ -389,15 +433,15 @@ export function TasksView({ projectId }: Props) {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
         </div>
       ) : tasks.length === 0 ? (
-        <div className="bg-[#18181b] border border-zinc-800 text-center py-12 rounded-xl text-zinc-500 italic text-xs">
+        <div className="bg-white border border-slate-200 text-center py-12 rounded-xl text-slate-400 italic text-xs shadow-sm">
           No tasks match the active selection criteria.
         </div>
       ) : layout === "list" ? (
         /* LIST REGISTRY TABLE */
-        <div className="bg-[#18181b] border border-zinc-800 rounded-xl shadow-lg shadow-black/10 overflow-hidden text-xs">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden text-xs">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-zinc-950/40 text-zinc-400 border-b border-zinc-800 font-medium">
+              <tr className="bg-slate-50 text-slate-500 border-b border-slate-200 font-semibold">
                 <th className="p-3 w-10 text-center">
                   <input type="checkbox" checked={selectedTaskIds.length === tasks.length} onChange={handleSelectAll} />
                 </th>
@@ -414,30 +458,30 @@ export function TasksView({ projectId }: Props) {
               {tasks.map(t => {
                 const isSelected = selectedTaskIds.includes(t.id);
                 return (
-                  <tr key={t.id} className={`border-b border-zinc-800/60 hover:bg-zinc-800/30 text-zinc-300 transition ${isSelected ? "bg-indigo-500/5" : ""}`}>
+                  <tr key={t.id} className={`border-b border-slate-100 hover:bg-slate-50/50 text-slate-700 transition ${isSelected ? "bg-indigo-50/40" : ""}`}>
                     <td className="p-3 text-center">
                       <input type="checkbox" checked={isSelected} onChange={() => handleToggleSelect(t.id)} />
                     </td>
                     <td className="p-3">
                       <div>
-                        <span className="font-semibold text-zinc-100 block">{t.title}</span>
+                        <span className="font-semibold text-slate-900 block">{t.title}</span>
                         {getMilestoneTitle(t.milestoneId) && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 mt-1 bg-zinc-800 text-zinc-400 font-mono text-[9px] rounded border border-zinc-700">
+                          <span className="inline-flex items-center px-1.5 py-0.5 mt-1 bg-slate-100 text-slate-600 font-mono text-[9px] rounded border border-slate-200">
                             Milestone: {getMilestoneTitle(t.milestoneId)}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="p-3 font-medium text-zinc-300">{getAssigneeName(t.assigneeId)}</td>
+                    <td className="p-3 font-medium text-slate-800">{getAssigneeName(t.assigneeId)}</td>
                     <td className="p-3">
                       <select
                         value={t.priority}
                         onChange={e => handleUpdatePriority(t.id, e.target.value as any)}
                         className={`font-mono text-[10px] p-1 border rounded focus:outline-none ${
-                          t.priority === "URGENT" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
-                          t.priority === "HIGH" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-                          t.priority === "MEDIUM" ? "bg-zinc-800 text-zinc-300 border border-zinc-700" :
-                          "bg-zinc-900 text-zinc-400 border border-zinc-850"
+                          t.priority === "URGENT" ? "bg-rose-50 text-rose-700 border-rose-200 font-semibold" :
+                          t.priority === "HIGH" ? "bg-amber-50 text-amber-700 border border-amber-200 font-semibold" :
+                          t.priority === "MEDIUM" ? "bg-slate-100 text-slate-700 border-slate-200" :
+                          "bg-slate-50 text-slate-500 border-slate-200"
                         }`}
                       >
                         <option value="LOW">Low</option>
@@ -450,7 +494,7 @@ export function TasksView({ projectId }: Props) {
                       <select
                         value={t.status}
                         onChange={e => handleUpdateStatus(t.id, e.target.value as any)}
-                        className="bg-zinc-900 text-zinc-300 p-1 border border-zinc-850 rounded focus:outline-none"
+                        className="bg-white text-slate-700 p-1 border border-slate-250 rounded focus:outline-none"
                       >
                         <option value="TODO">To Do</option>
                         <option value="IN_PROGRESS">In Progress</option>
@@ -458,10 +502,10 @@ export function TasksView({ projectId }: Props) {
                         <option value="DONE">Done</option>
                       </select>
                     </td>
-                    <td className="p-3 text-zinc-500 font-mono">{t.dueDate}</td>
-                    <td className="p-3 text-zinc-400 font-mono">{t.actualHours}/{t.estimatedHours}h</td>
+                    <td className="p-3 text-slate-500 font-mono">{t.dueDate}</td>
+                    <td className="p-3 text-slate-500 font-mono">{t.actualHours}/{t.estimatedHours}h</td>
                     <td className="p-3 text-right">
-                      <button onClick={() => handleDeleteTask(t.id)} className="p-1 text-zinc-500 hover:text-rose-400 rounded transition">
+                      <button onClick={() => handleDeleteTask(t.id)} className="p-1 text-slate-400 hover:text-rose-600 rounded transition">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </td>
@@ -477,35 +521,35 @@ export function TasksView({ projectId }: Props) {
           {columns.map(col => {
             const colTasks = tasks.filter(t => t.status === col.key);
             return (
-              <div key={col.key} className="bg-[#18181b] border border-zinc-800 rounded-xl p-4 flex flex-col min-h-[400px]">
+              <div key={col.key} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col min-h-[400px]">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="font-semibold text-zinc-200 text-xs">{col.label}</span>
-                  <span className="bg-zinc-800 border border-zinc-700 text-zinc-300 text-[10px] px-2 py-0.5 rounded-full font-mono">{colTasks.length}</span>
+                  <span className="font-bold text-slate-800 text-xs">{col.label}</span>
+                  <span className="bg-slate-200/80 border border-slate-300 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-mono font-bold">{colTasks.length}</span>
                 </div>
                 <div className="space-y-3 flex-1 overflow-y-auto">
                   {colTasks.map(t => (
-                    <div key={t.id} className="bg-[#09090b] border border-zinc-800 p-3.5 rounded-lg shadow-lg shadow-black/10 space-y-3 hover:border-indigo-500/50 transition duration-200">
+                    <div key={t.id} className="bg-white border border-slate-200/80 p-3.5 rounded-lg shadow-sm space-y-3 hover:border-indigo-400 transition duration-200">
                       <div className="flex justify-between items-start">
-                        <span className="font-semibold text-zinc-100 text-xs block leading-snug">{t.title}</span>
-                        <button onClick={() => handleDeleteTask(t.id)} className="text-zinc-600 hover:text-rose-400 transition">
+                        <span className="font-semibold text-slate-900 text-xs block leading-snug">{t.title}</span>
+                        <button onClick={() => handleDeleteTask(t.id)} className="text-slate-400 hover:text-rose-600 transition">
                           <Trash2 className="h-3 w-3" />
                         </button>
                       </div>
 
                       {/* Info lines */}
-                      <div className="text-[11px] text-zinc-400 space-y-1 bg-[#18181b] p-2 rounded border border-zinc-800/40">
+                      <div className="text-[11px] text-slate-500 space-y-1 bg-slate-50 p-2 rounded border border-slate-150">
                         <div className="flex justify-between">
                           <span>Owner</span>
-                          <span className="font-medium text-zinc-200">{getAssigneeName(t.assigneeId)}</span>
+                          <span className="font-medium text-slate-800">{getAssigneeName(t.assigneeId)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Due</span>
-                          <span className="font-mono text-zinc-400">{t.dueDate}</span>
+                          <span className="font-mono text-slate-600">{t.dueDate}</span>
                         </div>
                       </div>
 
                       {/* Quick transition triggers */}
-                      <div className="flex justify-between items-center pt-2 border-t border-zinc-800/60">
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                         {/* Status Shift Buttons */}
                         <div className="flex space-x-1">
                           {col.key !== TaskStatus.TODO && (
@@ -514,7 +558,7 @@ export function TasksView({ projectId }: Props) {
                                 const prevIdx = columns.findIndex(c => c.key === col.key) - 1;
                                 handleUpdateStatus(t.id, columns[prevIdx].key);
                               }}
-                              className="px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded font-mono text-[9px] text-zinc-300 transition"
+                              className="px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded font-mono text-[9px] text-slate-700 transition"
                             >
                               &larr; Back
                             </button>
@@ -534,9 +578,9 @@ export function TasksView({ projectId }: Props) {
 
                         {/* Priority Bubble */}
                         <span className={`px-1.5 py-0.5 text-[9px] font-mono rounded border ${
-                          t.priority === "URGENT" ? "bg-rose-500/10 border-rose-500/20 text-rose-400" :
-                          t.priority === "HIGH" ? "bg-amber-500/10 border-amber-500/20 text-amber-400" :
-                          "bg-zinc-800 border-zinc-700 text-zinc-300"
+                          t.priority === "URGENT" ? "bg-rose-50 border-rose-200 text-rose-700 font-semibold" :
+                          t.priority === "HIGH" ? "bg-amber-50 border-amber-200 text-amber-700 font-semibold" :
+                          "bg-slate-100 border-slate-200 text-slate-600"
                         }`}>
                           {t.priority}
                         </span>

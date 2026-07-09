@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { IAMController } from "./iam.controller";
 import { authController } from "./auth.controller.ts";
+import { UserController } from "./user.controller.ts";
 import { authMiddleware } from "../../../shared/infrastructure/auth.middleware.ts";
 
 const router = Router();
+const userController = new UserController();
 
 /**
  * @swagger
@@ -225,5 +227,6 @@ router.get("/me", authMiddleware, authController.getMe);
  *         description: Error processing permissions mapping
  */
 router.get("/users/:userId/effective-permissions", IAMController.getEffectivePermissions);
+router.get("/departments", authMiddleware, userController.getDepartments);
 
 export default router;

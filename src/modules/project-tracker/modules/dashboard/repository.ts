@@ -5,16 +5,55 @@ export class DashboardRepository {
   /**
    * Fetch all active, non-soft-deleted projects
    */
-  async getActiveProjects(): Promise<Project[]> {
-    return dbState.projects.filter(p => !p.deletedAt);
+  async getActiveProjects(): Promise<any[]> {
+    const { db } = await import("../../../../shared/database/index.ts");
+    const { projects: pgProjectsTable, tasks: pgTasksTable } = await import("../../../../db/schema.ts");
+    const { isNull } = await import("drizzle-orm");
+    
+    const dbProjects = await db.select().from(pgProjectsTable).where(isNull(pgProjectsTable.deletedAt));
+    
+    // We map over them to retrieve their completion progress from tasks
+    const allTasks = await db.select().from(pgTasksTable).where(isNull(pgTasksTable.deletedAt));
+    
+    return dbProjects.map(p => {
+      const pTasks = allTasks.filter(t => t.projectId === p.id);
+      let progress = 0;
+      if (pTasks.length > 0) {
+        progress = pTasks.reduce((sum, t) => sum + (t.completionPercentage || 0), 0) / pTasks.length;
+      }
+      return {
+        ...p,
+        budget: p.budget ? parseFloat(p.budget) : 100000,
+        actualCost: p.actualCost ? parseFloat(p.actualCost) : 0,
+        progress: progress,
+      };
+    });
   }
 
   /**
    * Fetch a specific project by UUID
    */
-  async getProjectById(id: string): Promise<Project | null> {
-    const project = dbState.projects.find(p => p.id === id && !p.deletedAt);
-    return project || null;
+  async getProjectById(id: string): Promise<any | null> {
+    const { db } = await import("../../../../shared/database/index.ts");
+    const { projects: pgProjectsTable, tasks: pgTasksTable } = await import("../../../../db/schema.ts");
+    const { eq, isNull, and } = await import("drizzle-orm");
+    
+    const pRecords = await db.select().from(pgProjectsTable).where(and(eq(pgProjectsTable.id, id), isNull(pgProjectsTable.deletedAt)));
+    const p = pRecords[0];
+    if (!p) return null;
+    
+    const pTasks = await db.select().from(pgTasksTable).where(and(eq(pgTasksTable.projectId, id), isNull(pgTasksTable.deletedAt)));
+    let progress = 0;
+    if (pTasks.length > 0) {
+      progress = pTasks.reduce((sum, t) => sum + (t.completionPercentage || 0), 0) / pTasks.length;
+    }
+    
+    return {
+      ...p,
+      budget: p.budget ? parseFloat(p.budget) : 100000,
+      actualCost: p.actualCost ? parseFloat(p.actualCost) : 0,
+      progress: progress,
+    };
   }
 
   /**

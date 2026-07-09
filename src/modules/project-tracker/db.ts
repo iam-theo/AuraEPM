@@ -1237,3 +1237,62 @@ export function saveDatabase(): void {
 loadDatabase();
 
 export { dbState };
+
+export async function createNotification(userId: string, title: string, message: string, type: string) {
+  try {
+    const id = generateUUID();
+    await db.insert(pgNotificationsTable).values({
+      id,
+      userId,
+      title,
+      message,
+      type,
+      isRead: false,
+    });
+
+    dbState.notifications.unshift({
+      id,
+      userId,
+      projectId: "",
+      title,
+      message,
+      isRead: false,
+      type: type as any,
+      createdAt: new Date().toISOString()
+    });
+    saveDatabase();
+  } catch (err) {
+    console.error("Failed to insert notification into database:", err);
+  }
+}
+
+export async function createAuditLog(projectId: string | null, userId: string, action: string, entityType: string, entityId: string, details: string) {
+  try {
+    const id = generateUUID();
+    await db.insert(pgAuditLogsTable).values({
+      id,
+      projectId,
+      userId,
+      action,
+      entityType,
+      entityId,
+      details,
+    });
+
+    dbState.auditLogs.unshift({
+      id,
+      projectId: projectId || "",
+      userId,
+      userName: "System User",
+      action,
+      entityType,
+      entityId,
+      details,
+      timestamp: new Date().toISOString()
+    });
+    saveDatabase();
+  } catch (err) {
+    console.error("Failed to insert audit log into database:", err);
+  }
+}
+

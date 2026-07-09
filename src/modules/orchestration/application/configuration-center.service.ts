@@ -37,9 +37,9 @@ export class ConfigurationCenterService {
         {
           key: "notification.templates.welcome",
           value: {
-            title: "Welcome to AuraPM Enterprise",
+            title: "Welcome to FASYL PMO Enterprise",
             body: "Hello {name}, your enterprise delivery account is activated.",
-            sms: "AuraPM Account Activated: Hello {name}!",
+            sms: "FASYL PMO Account Activated: Hello {name}!",
           },
           category: "NOTIFICATION",
         },

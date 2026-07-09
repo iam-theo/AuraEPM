@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { handleAgentChat } from "./service.ts";
+import { handleAgentChat, getExecutiveInsights } from "./service.ts";
 
 const router = Router();
 
@@ -34,4 +34,29 @@ router.post("/chat", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/executive-insights", async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.body;
+    if (!projectId) {
+      return res.status(400).json({
+        success: false,
+        message: "projectId is required."
+      });
+    }
+
+    const insights = await getExecutiveInsights(projectId);
+    return res.json({
+      success: true,
+      data: insights
+    });
+  } catch (error: any) {
+    console.error("Executive Insights Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to generate executive insights."
+    });
+  }
+});
+
 export default router;
+
